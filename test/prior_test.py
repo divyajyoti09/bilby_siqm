@@ -4,7 +4,6 @@ import unittest
 from mock import Mock
 import numpy as np
 import os
-import shutil
 from collections import OrderedDict
 
 
@@ -153,7 +152,11 @@ class TestPriorClasses(unittest.TestCase):
             bilby.core.prior.Lorentzian(name='test', unit='unit', alpha=0, beta=1),
             bilby.core.prior.Gamma(name='test', unit='unit', k=1, theta=1),
             bilby.core.prior.ChiSquared(name='test', unit='unit', nu=2),
-            bilby.gw.prior.AlignedSpin(name='test', unit='unit')
+            bilby.gw.prior.AlignedSpin(name='test', unit='unit'),
+            bilby.gw.prior.RedshiftedPrior(
+                unredshifted_prior=bilby.core.prior.Uniform(10, 20),
+                redshift_prior=bilby.core.prior.Uniform(0, 1),
+                name='test', unit='unit')
         ]
 
     def test_minimum_rescaling(self):

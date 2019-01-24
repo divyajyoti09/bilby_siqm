@@ -130,6 +130,40 @@ class AlignedSpin(Interped):
                           latex_label=latex_label, unit=unit)
 
 
+class RedshiftedPrior(Interped):
+
+    def __init__(self, unredshifted_prior, redshift_prior, name=None,
+                 latex_label=None, unit=None):
+        """
+        Generate the redshifted, lab-frame, prior given a source-frame prior and
+        a redshift prior.
+
+        p(m_det) = \int dz \int dm p(z, m) delta(m_det - m * (1 + z))
+
+        Parameters
+        ----------
+        unredshifted_prior: bilby.core.prior.Prior
+            Prior which you want to redshift
+        redshift_prior: bilby.core.prior.Prior
+        name: str
+        latex_label: str
+        unit: str
+        """
+        unredshifted_masses = unredshifted_prior.rescale(np.linspace(0, 1, 1000))
+        redshifts = redshift_prior.rescale((np.linspace(0, 1, 1000)))
+        new_min = unredshifted_masses[0] * (1 + redshifts[0])
+        new_max = unredshifted_masses[-1] * (1 + redshifts[-1])
+        xx = np.linspace(new_min, new_max, 101)
+        yy = [np.trapz(np.nan_to_num(
+            unredshifted_prior.prob(x / (1 + redshifts)) / (1 + redshifts) *
+            redshift_prior.prob(redshifts)), redshifts) for x in xx]
+        self.unredshifted_prior = unredshifted_prior
+        self.redshift_prior = redshift_prior
+        Interped.__init__(
+            self, xx=xx, yy=yy, minimum=new_min, maximum=new_max, name=name,
+            latex_label=latex_label, unit=unit)
+
+
 class BBHPriorDict(PriorDict):
     def __init__(self, dictionary=None, filename=None):
         """ Initialises a Prior set for Binary Black holes
