@@ -358,8 +358,8 @@ class InterferometerStrainData(object):
         -------
         array_like: An array of boolean values
         """
-        return ((self.frequency_array > self.minimum_frequency) &
-                (self.frequency_array < self.maximum_frequency))
+        return ((self.frequency_array >= self.minimum_frequency) &
+                (self.frequency_array <= self.maximum_frequency))
 
     @property
     def alpha(self):
@@ -1304,7 +1304,7 @@ class Interferometer(object):
            `waveform_generator.frequency_domain_strain()`. If
            `waveform_generator` is also given, the injection_polarizations will
            be calculated directly and this argument can be ignored.
-        waveform_generator: bilby.gw.waveform_generator
+        waveform_generator: bilby.gw.waveform_generator.WaveformGenerator
             A WaveformGenerator instance using the source model to inject. If
             `injection_polarizations` is given, this will be ignored.
 
@@ -2158,7 +2158,7 @@ def get_interferometer_with_fake_noise_and_injection(
        `waveform_generator.frequency_domain_strain()`. If
        `waveform_generator` is also given, the injection_polarizations will
        be calculated directly and this argument can be ignored.
-    waveform_generator: bilby.gw.waveform_generator
+    waveform_generator: bilby.gw.waveform_generator.WaveformGenerator
         A WaveformGenerator instance using the source model to inject. If
         `injection_polarizations` is given, this will be ignored.
     sampling_frequency: float

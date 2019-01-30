@@ -2,9 +2,10 @@ from __future__ import absolute_import, print_function
 
 import numpy as np
 from pandas import DataFrame
+from distutils.version import LooseVersion
 
 from ..utils import logger, get_progress_bar
-from .base_sampler import MCMCSampler
+from .base_sampler import MCMCSampler, SamplerError
 
 
 class Emcee(MCMCSampler):
@@ -38,7 +39,7 @@ class Emcee(MCMCSampler):
     """
 
     default_kwargs = dict(nwalkers=500, a=2, args=[], kwargs={},
-                          postargs=None, threads=1, pool=None, live_dangerously=False,
+                          postargs=None, pool=None, live_dangerously=False,
                           runtime_sortingfn=None, lnprob0=None, rstate0=None,
                           blobs0=None, iterations=100, thin=1, storechain=True, mh_proposal=None)
 
@@ -62,17 +63,69 @@ class Emcee(MCMCSampler):
         if 'iterations' not in kwargs:
             if 'nsteps' in kwargs:
                 kwargs['iterations'] = kwargs.pop('nsteps')
+        if 'threads' in kwargs:
+            if kwargs['threads'] != 1:
+                logger.warning("The 'threads' argument cannot be used for "
+                               "parallelisation. This run will proceed "
+                               "without parallelisation, but consider the use "
+                               "of an appropriate Pool object passed to the "
+                               "'pool' keyword.")
+                kwargs['threads'] = 1
 
     @property
     def sampler_function_kwargs(self):
+        import emcee
+
         keys = ['lnprob0', 'rstate0', 'blobs0', 'iterations', 'thin', 'storechain', 'mh_proposal']
-        return {key: self.kwargs[key] for key in keys}
+
+        # updated function keywords for emcee > v2.2.1
+        updatekeys = {'p0': 'initial_state',
+                      'lnprob0': 'log_prob0',
+                      'storechain': 'store'}
+
+        function_kwargs = {key: self.kwargs[key] for key in keys if key in self.kwargs}
+        function_kwargs['p0'] = self.pos0
+
+        if LooseVersion(emcee.__version__) > LooseVersion('2.2.1'):
+            if function_kwargs['mh_proposal'] is not None:
+                logger.warning("The 'mh_proposal' option is no longer used "
+                               "in emcee v{}, and will be ignored.".format(emcee.__version__))
+            del function_kwargs['mh_proposal']
+
+            for key in updatekeys:
+                if updatekeys[key] not in function_kwargs:
+                    function_kwargs[updatekeys[key]] = function_kwargs.pop(key)
+                else:
+                    del function_kwargs[key]
+
+        return function_kwargs
 
     @property
     def sampler_init_kwargs(self):
-        return {key: value
-                for key, value in self.kwargs.items()
-                if key not in self.sampler_function_kwargs}
+        import emcee
+
+        init_kwargs = {key: value
+                       for key, value in self.kwargs.items()
+                       if key not in self.sampler_function_kwargs}
+
+        init_kwargs['lnpostfn'] = self.lnpostfn
+        init_kwargs['dim'] = self.ndim
+
+        # updated init keywords for emcee > v2.2.1
+        updatekeys = {'dim': 'ndim',
+                      'lnpostfn': 'log_prob_fn'}
+
+        if LooseVersion(emcee.__version__) > LooseVersion('2.2.1'):
+            for key in updatekeys:
+                if key in init_kwargs:
+                    init_kwargs[updatekeys[key]] = init_kwargs.pop(key)
+
+            oldfunckeys = ['p0', 'lnprob0', 'storechain', 'mh_proposal']
+            for key in oldfunckeys:
+                if key in init_kwargs:
+                    del init_kwargs[key]
+
+        return init_kwargs
 
     @property
     def nburn(self):
@@ -104,19 +157,34 @@ class Emcee(MCMCSampler):
     def nsteps(self, nsteps):
         self.kwargs['iterations'] = nsteps
 
+    def __getstate__(self):
+        # In order to be picklable with dill, we need to discard the pool
+        # object before trying.
+        d = self.__dict__
+        d["_Sampler__kwargs"]["pool"] = None
+        return d
+
     def run_sampler(self):
         import emcee
         tqdm = get_progress_bar()
-        sampler = emcee.EnsembleSampler(dim=self.ndim, lnpostfn=self.lnpostfn, **self.sampler_init_kwargs)
+        sampler = emcee.EnsembleSampler(**self.sampler_init_kwargs)
         self._set_pos0()
-        for _ in tqdm(sampler.sample(p0=self.pos0, **self.sampler_function_kwargs),
+        for _ in tqdm(sampler.sample(**self.sampler_function_kwargs),
                       total=self.nsteps):
             pass
         self.result.sampler_output = np.nan
         self.calculate_autocorrelation(sampler.chain.reshape((-1, self.ndim)))
         self.print_nburn_logging_info()
         self.result.nburn = self.nburn
+        if self.result.nburn > self.nsteps:
+            raise SamplerError(
+                "The run has finished, but the chain is not burned in: "
+                "`nburn < nsteps`. Try increasing the number of steps.")
         self.result.samples = sampler.chain[:, self.nburn:, :].reshape((-1, self.ndim))
+        blobs_flat = np.array(sampler.blobs)[self.nburn:, :, :].reshape((-1, 2))
+        log_likelihoods, log_priors = blobs_flat.T
+        self.result.log_likelihood_evaluations = log_likelihoods
+        self.result.log_prior_evaluations = log_priors
         self.result.walkers = sampler.chain
         self.result.log_evidence = np.nan
         self.result.log_evidence_err = np.nan
@@ -142,8 +210,9 @@ class Emcee(MCMCSampler):
                          for _ in range(self.nwalkers)]
 
     def lnpostfn(self, theta):
-        p = self.log_prior(theta)
-        if np.isinf(p):
-            return -np.inf
+        log_prior = self.log_prior(theta)
+        if np.isinf(log_prior):
+            return -np.inf, [np.nan, np.nan]
         else:
-            return self.log_likelihood(theta) + p
+            log_likelihood = self.log_likelihood(theta)
+            return log_likelihood + log_prior, [log_likelihood, log_prior]
