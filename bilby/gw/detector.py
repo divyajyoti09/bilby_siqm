@@ -52,7 +52,9 @@ class InterferometerList(list):
 
     def _check_interferometers(self):
         """ Check certain aspects of the set are the same """
-        consistent_attributes = ['duration', 'start_time', 'sampling_frequency']
+        consistent_attributes = [
+            'duration', 'start_time', 'sampling_frequency',
+            'minimum_frequency', 'maximum_frequency']
         for attribute in consistent_attributes:
             x = [getattr(interferometer.strain_data, attribute)
                  for interferometer in self]
@@ -189,6 +191,14 @@ class InterferometerList(list):
     @property
     def sampling_frequency(self):
         return self[0].strain_data.sampling_frequency
+
+    @property
+    def minimum_frequency(self):
+        return self[0].strain_data.minimum_frequency
+
+    @property
+    def maximum_frequency(self):
+        return self[0].strain_data.maximum_frequency
 
     @property
     def frequency_array(self):
