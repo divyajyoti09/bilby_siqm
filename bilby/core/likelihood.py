@@ -49,6 +49,22 @@ class Likelihood(object):
         return self.log_likelihood() - self.noise_log_likelihood()
 
     @property
+    def null_likelihood(self):
+        return self._return_zero
+
+    @null_likelihood.setter
+    def null_likelihood(self, value):
+        self._return_zero = value
+        if value:
+            self.__log_likelihood = self.log_likelihood
+            self.__log_likelihood_ratio = self.log_likelihood_ratio
+            self.log_likelihood = lambda: 0
+            self.log_likelihood_ratio = lambda: 0
+        else:
+            self.log_likelihood = self.__log_likelihood
+            self.log_likelihood_ratio = self.__log_likelihood_ratio
+
+    @property
     def meta_data(self):
         try:
             return self._meta_data
