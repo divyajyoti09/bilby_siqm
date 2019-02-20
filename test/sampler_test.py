@@ -1,13 +1,15 @@
 from __future__ import absolute_import
-import bilby
-from bilby.core import prior
-import unittest
-from mock import MagicMock
-import numpy as np
 import os
-import sys
 import shutil
 import copy
+import unittest
+from mock import MagicMock
+
+import numpy as np
+from scipy.stats import ks_2samp
+
+import bilby
+from bilby.core import prior
 
 
 class TestSampler(unittest.TestCase):
@@ -497,8 +499,59 @@ class TestRunningSamplers(unittest.TestCase):
     def test_run_PTMCMCSampler(self):
         _ = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors,
-            sampler= 'PTMCMCsampler', Niter=101, burn =2,
-            isave = 100 ,save=False)
+            sampler='PTMCMCsampler', Niter=101, burn=2,
+            isave=100, save=False)
+
+
+class TestNullLikelihood(unittest.TestCase):
+
+    def setUp(self):
+        self.priors = bilby.gw.prior.BBHPriorDict()
+        self.waveform_generator = bilby.gw.waveform_generator.WaveformGenerator(
+            duration=4, sampling_frequency=2048,
+            frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole)
+        self.interferometers = bilby.gw.detector.InterferometerList(['H1'])
+        self.interferometers.set_strain_data_from_power_spectral_densities(
+            duration=4, sampling_frequency=2048)
+        self.likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
+            waveform_generator=self.waveform_generator,
+            interferometers=self.interferometers)
+        self.likelihood.null_likelihood = True
+        self.min_pvalue = 1 - 0.99**(1 / len(self.priors))
+
+    def test_cpnest(self):
+        # this doesn't run
+        # self._test_sampler('cpnest')
+        pass
+
+    def test_dynesty(self):
+        self._test_sampler('dynesty')
+
+    def test_emcee(self):
+        self._test_sampler('emcee')
+
+    def test_nestle(self):
+        self._test_sampler('nestle')
+
+    def test_polychord(self):
+        self._test_sampler('pypolychord')
+
+    def test_ptemcee(self):
+        self._test_sampler('ptemcee')
+
+    def test_ptmcmc(self):
+        self._test_sampler('ptemcee')
+
+    def _test_sampler(self, sampler):
+        result = bilby.run_sampler(
+            likelihood=self.likelihood, priors=self.priors, sampler=sampler,
+            nlive=1000, iterations=1000, nwalkers=100, save=False)
+        pvalues = list()
+        for key in self.priors:
+            pvalues.append(ks_2samp(
+                self.priors.sample(len(result.posterior))[key],
+                result.posterior[key]).pvalue)
+        self.assertGreater(min(pvalues), self.min_pvalue)
 
 
 if __name__ == '__main__':
