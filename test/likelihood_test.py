@@ -1,9 +1,11 @@
 from __future__ import absolute_import
-# import bilby
+
 import unittest
 from mock import MagicMock
 import mock
+
 import numpy as np
+
 from bilby.core.likelihood import (
     Likelihood, GaussianLikelihood, PoissonLikelihood, StudentTLikelihood,
     Analytical1DLikelihood, ExponentialLikelihood, JointLikelihood)
@@ -573,6 +575,28 @@ class TestJointLikelihood(unittest.TestCase):
     #     joint_likelihood = bilby.core.likelihood.JointLikelihood(self.first_likelihood, self.second_likelihood)
     #     joint_likelihood.likelihoods.append(self.third_likelihood)
     #     self.assertDictEqual(self.joint_likelihood.parameters, joint_likelihood.parameters)
+
+
+class TestNullLikelihood(unittest.TestCase):
+
+    def setUp(self):
+        npoints = 100
+        sigma = 0.1
+        self.x = np.random.normal(0, sigma, npoints)
+        self.y = self.x
+
+        self.likelihood = GaussianLikelihood(
+            x=self.x, y=self.y, func=lambda x: x, sigma=sigma)
+
+    def test_set_null_likelihood(self):
+        self.likelihood.null_likelihood = True
+        self.assertEqual(self.likelihood.log_likelihood(), 0)
+
+    def test_unset_null_likelihood(self):
+        initial_log_l = self.likelihood.log_likelihood()
+        self.likelihood.null_likelihood = True
+        self.likelihood.null_likelihood = False
+        self.assertEqual(self.likelihood.log_likelihood(), initial_log_l)
 
 
 if __name__ == '__main__':
