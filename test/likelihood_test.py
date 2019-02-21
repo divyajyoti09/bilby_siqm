@@ -582,11 +582,11 @@ class TestNullLikelihood(unittest.TestCase):
     def setUp(self):
         npoints = 100
         sigma = 0.1
-        self.x = np.random.normal(0, sigma, npoints)
-        self.y = self.x
+        xx = np.random.normal(0, sigma, npoints)
+        yy = xx
 
         self.likelihood = GaussianLikelihood(
-            x=self.x, y=self.y, func=lambda x: x, sigma=sigma)
+            x=xx, y=yy, func=lambda x: x, sigma=sigma)
 
     def test_set_null_likelihood(self):
         self.likelihood.null_likelihood = True
