@@ -17,6 +17,7 @@ class Likelihood(object):
         parameters:
         """
         self.parameters = parameters
+        self._return_zero = False
 
     def __repr__(self):
         return self.__class__.__name__ + '(parameters={})'.format(self.parameters)
