@@ -78,6 +78,8 @@ class Cpnest(NestedSampler):
                   for key in self.search_parameter_keys]
         model = Model(self.search_parameter_keys, bounds)
         out = CPNest(model, **self.kwargs)
+        if self.likelihood.null_likelihood:
+            out.NS.prior_sampling = True
         out.run()
 
         if self.plot:

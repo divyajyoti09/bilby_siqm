@@ -19,7 +19,7 @@ from .pymultinest import Pymultinest
 
 IMPLEMENTED_SAMPLERS = {
     'cpnest': Cpnest, 'dynesty': Dynesty, 'emcee': Emcee, 'nestle': Nestle,
-    'ptemcee': Ptemcee,'ptmcmcsampler' : PTMCMCSampler,
+    'ptemcee': Ptemcee,'ptmcmcsampler': PTMCMCSampler,
     'pymc3': Pymc3, 'pymultinest': Pymultinest, 'pypolychord': PyPolyChord }
 
 if command_line_args.sampler_help:
