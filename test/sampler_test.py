@@ -506,23 +506,24 @@ class TestRunningSamplers(unittest.TestCase):
 class TestNullLikelihood(unittest.TestCase):
 
     def setUp(self):
-        self.priors = bilby.gw.prior.BBHPriorDict()
-        self.waveform_generator = bilby.gw.waveform_generator.WaveformGenerator(
-            duration=4, sampling_frequency=2048,
-            frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole)
-        self.interferometers = bilby.gw.detector.InterferometerList(['H1'])
-        self.interferometers.set_strain_data_from_power_spectral_densities(
-            duration=4, sampling_frequency=2048)
-        self.likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
-            waveform_generator=self.waveform_generator,
-            interferometers=self.interferometers)
+        self.priors = prior.PriorDict()
+        self.priors['aa'] = prior.Uniform(minimum=-5, maximum=5)
+        self.priors['bb'] = prior.Beta(minimum=-1, maximum=2, alpha=3, beta=4)
+        self.priors['cc'] = prior.TruncatedGaussian(
+            mu=0.7, sigma=1, minimum=-10, maximum=10)
+        xx = np.linspace(3, 7, 1000)
+        self.priors['dd'] = prior.Interped(xx=xx, yy=np.log(xx) + xx**7.3)
+
+        self.likelihood = bilby.core.likelihood.GaussianLikelihood(
+            x=1, y=1, sigma=1, func=lambda x: x)
         self.likelihood.null_likelihood = True
         self.min_pvalue = 1 - 0.99**(1 / len(self.priors))
 
     def test_cpnest(self):
+        self._test_sampler('cpnest')
         # this doesn't run
         # self._test_sampler('cpnest')
-        pass
+        # pass
 
     def test_dynesty(self):
         self._test_sampler('dynesty')
@@ -540,12 +541,18 @@ class TestNullLikelihood(unittest.TestCase):
         self._test_sampler('ptemcee')
 
     def test_ptmcmc(self):
-        self._test_sampler('ptemcee')
+        self._test_sampler('ptmcmcsampler')
+
+    def test_pymc3(self):
+        self._test_sampler('pymc3')
+
+    def test_pymultinest(self):
+        self._test_sampler('pymultinest')
 
     def _test_sampler(self, sampler):
         result = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors, sampler=sampler,
-            nlive=1000, iterations=1000, nwalkers=100, save=False)
+            nlive=1000, iterations=1000, nwalkers=10, save=False)
         pvalues = list()
         for key in self.priors:
             pvalues.append(ks_2samp(
