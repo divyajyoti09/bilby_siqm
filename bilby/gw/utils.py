@@ -130,6 +130,7 @@ def get_polarization_tensor(ra, dec, time, psi, mode):
     elif mode.lower() == 'breathing':
         return np.einsum('i,j->ij', m, m) + np.einsum('i,j->ij', n, n)
 
+    # Calculating omega here to avoid calculation when model in [plus, cross, breathing]
     omega = np.cross(m, n)
     if mode.lower() == 'longitudinal':
         return np.sqrt(2) * np.einsum('i,j->ij', omega, omega)
@@ -138,8 +139,7 @@ def get_polarization_tensor(ra, dec, time, psi, mode):
     elif mode.lower() == 'y':
         return np.einsum('i,j->ij', n, omega) + np.einsum('i,j->ij', omega, n)
     else:
-        logger.warning("{} not a polarization mode!".format(mode))
-        return None
+        raise ValueError("{} not a polarization mode!".format(mode))
 
 
 def get_vertex_position_geocentric(latitude, longitude, elevation):
@@ -380,7 +380,7 @@ def get_open_strain_data(
     return strain
 
 
-def read_frame_file(file_name, start_time, end_time, channel=None, buffer_time=1, **kwargs):
+def read_frame_file(file_name, start_time, end_time, channel=None, buffer_time=0, **kwargs):
     """ A function which accesses the open strain data
 
     This uses `gwpy` to download the open data and then saves a cached copy for
@@ -416,23 +416,22 @@ def read_frame_file(file_name, start_time, end_time, channel=None, buffer_time=1
         except RuntimeError:
             logger.warning('Channel {} not found. Trying preset channel names'.format(channel))
 
-    while not loaded:
-        ligo_channel_types = ['GDS-CALIB_STRAIN', 'DCS-CALIB_STRAIN_C01', 'DCS-CALIB_STRAIN_C02',
-                              'DCH-CLEAN_STRAIN_C02']
-        virgo_channel_types = ['Hrec_hoft_V1O2Repro2A_16384Hz', 'FAKE_h_16384Hz_4R']
-        channel_types = dict(H1=ligo_channel_types, L1=ligo_channel_types, V1=virgo_channel_types)
-        for detector in channel_types.keys():
-            for channel_type in channel_types[detector]:
-                if loaded:
-                    break
-                channel = '{}:{}'.format(detector, channel_type)
-                try:
-                    strain = TimeSeries.read(source=file_name, channel=channel, start=start_time, end=end_time,
-                                             **kwargs)
-                    loaded = True
-                    logger.info('Successfully read strain data for channel {}.'.format(channel))
-                except RuntimeError:
-                    pass
+    ligo_channel_types = ['GDS-CALIB_STRAIN', 'DCS-CALIB_STRAIN_C01', 'DCS-CALIB_STRAIN_C02',
+                          'DCH-CLEAN_STRAIN_C02']
+    virgo_channel_types = ['Hrec_hoft_V1O2Repro2A_16384Hz', 'FAKE_h_16384Hz_4R']
+    channel_types = dict(H1=ligo_channel_types, L1=ligo_channel_types, V1=virgo_channel_types)
+    for detector in channel_types.keys():
+        for channel_type in channel_types[detector]:
+            if loaded:
+                break
+            channel = '{}:{}'.format(detector, channel_type)
+            try:
+                strain = TimeSeries.read(source=file_name, channel=channel, start=start_time, end=end_time,
+                                         **kwargs)
+                loaded = True
+                logger.info('Successfully read strain data for channel {}.'.format(channel))
+            except RuntimeError:
+                pass
 
     if loaded:
         return strain
@@ -491,7 +490,7 @@ def gracedb_to_json(gracedb, outdir=None):
         outfilepath = os.path.join(outdir, '{}.json'.format(gracedb))
         logger.info('Writing candidate to {}'.format(outfilepath))
         with open(outfilepath, 'w') as outfile:
-                json.dump(json_output, outfile, indent=2)
+            json.dump(json_output, outfile, indent=2)
 
     return json_output
 
@@ -528,7 +527,7 @@ def gw_data_find(observatory, gps_start_time, duration, calibration,
 
     if query_type is None:
         logger.warning('No query type provided. This may prevent data from being read.')
-        if observatory_code is 'V':
+        if observatory_code == 'V':
             query_type = 'V1Online'
         else:
             query_type = '{}_HOFT_C0{}'.format(observatory, calibration)
@@ -741,6 +740,35 @@ def lalsim_GetApproximantFromString(waveform_approximant):
         raise ValueError("waveform_approximant must be of type str")
 
 
+def lalsim_SimInspiralFD(
+        mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
+        spin_2z, luminosity_distance, iota, phase,
+        longitude_ascending_nodes, eccentricity, mean_per_ano, delta_frequency,
+        minimum_frequency, maximum_frequency, reference_frequency,
+        waveform_dictionary, approximant):
+
+    # Convert values to floats
+    [mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z,
+     luminosity_distance, iota, phase, longitude_ascending_nodes,
+     eccentricity, mean_per_ano, delta_frequency, minimum_frequency,
+     maximum_frequency, reference_frequency] = convert_args_list_to_float(
+        mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z,
+        luminosity_distance, iota, phase, longitude_ascending_nodes,
+        eccentricity, mean_per_ano, delta_frequency, minimum_frequency,
+        maximum_frequency, reference_frequency)
+
+    # Note, this is the approximant number returns by GetApproximantFromString
+    if isinstance(approximant, int) is False:
+        raise ValueError("approximant not an int")
+
+    return lalsim.SimInspiralFD(
+        mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
+        spin_2z, luminosity_distance, iota, phase,
+        longitude_ascending_nodes, eccentricity, mean_per_ano, delta_frequency,
+        minimum_frequency, maximum_frequency, reference_frequency,
+        waveform_dictionary, approximant)
+
+
 def lalsim_SimInspiralChooseFDWaveform(
         mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
         spin_2z, luminosity_distance, iota, phase,
@@ -768,6 +796,33 @@ def lalsim_SimInspiralChooseFDWaveform(
         longitude_ascending_nodes, eccentricity, mean_per_ano, delta_frequency,
         minimum_frequency, maximum_frequency, reference_frequency,
         waveform_dictionary, approximant)
+
+
+def lalsim_SimIMRPhenomPCalculateModelParametersFromSourceFrame(
+        mass_1, mass_2, reference_frequency, phase, iota, spin_1x,
+        spin_1y, spin_1z, spin_2x, spin_2y, spin_2z, version):
+    [mass_1, mass_2, reference_frequency, phase, iota, spin_1x,
+     spin_1y, spin_1z, spin_2x, spin_2y, spin_2z] = convert_args_list_to_float(
+        mass_1, mass_2, reference_frequency, phase, iota, spin_1x,
+        spin_1y, spin_1z, spin_2x, spin_2y, spin_2z)
+    return lalsim.SimIMRPhenomPCalculateModelParametersFromSourceFrame(
+        mass_1, mass_2, reference_frequency, phase, iota, spin_1x,
+        spin_1y, spin_1z, spin_2x, spin_2y, spin_2z, version)
+
+
+def lalsim_SimIMRPhenomPFrequencySequence(
+        frequency_nodes, chi_1_l, chi_2_l, chi_p, theta_jn,
+        mass_1, mass_2, luminosity_distance,
+        alpha, phase_aligned, reference_frequency, version):
+    [chi_1_l, chi_2_l, chi_p, theta_jn, mass_1, mass_2, luminosity_distance,
+     alpha, phase_aligned, reference_frequency] = convert_args_list_to_float(
+        chi_1_l, chi_2_l, chi_p, theta_jn, mass_1, mass_2, luminosity_distance,
+        alpha, phase_aligned, reference_frequency)
+
+    return lalsim.SimIMRPhenomPFrequencySequence(
+        frequency_nodes, chi_1_l, chi_2_l, chi_p, theta_jn, mass_1, mass_2,
+        luminosity_distance, alpha, phase_aligned, reference_frequency, version,
+        None)
 
 
 def lalsim_SimInspiralWaveformParamsInsertTidalLambda1(

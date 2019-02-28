@@ -1,5 +1,5 @@
 from . import (calibration, conversion, cosmology, detector, likelihood, prior,
-               source, utils, waveform_generator, result)
+               result, source, utils, waveform_generator)
 
 from .waveform_generator import WaveformGenerator
 from .likelihood import GravitationalWaveTransient

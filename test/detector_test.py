@@ -39,7 +39,8 @@ class TestInterferometer(unittest.TestCase):
                                                     xarm_tilt=self.xarm_tilt, yarm_tilt=self.yarm_tilt)
         self.ifo.strain_data.set_from_frequency_domain_strain(
             np.linspace(0, 4096, 4097), sampling_frequency=4096, duration=2)
-        bilby.core.utils.check_directory_exists_and_if_not_mkdir('outdir')
+        self.outdir = 'outdir'
+        bilby.core.utils.check_directory_exists_and_if_not_mkdir(self.outdir)
 
     def tearDown(self):
         del self.name
@@ -55,7 +56,7 @@ class TestInterferometer(unittest.TestCase):
         del self.xarm_tilt
         del self.yarm_tilt
         del self.ifo
-        rmtree('outdir')
+        rmtree(self.outdir)
 
     def test_name_setting(self):
         self.assertEqual(self.ifo.name, self.name)
@@ -798,7 +799,8 @@ class TestInterferometerList(unittest.TestCase):
         self.ifo2.strain_data.set_from_frequency_domain_strain(
             self.frequency_arrays, sampling_frequency=4096, duration=2)
         self.ifo_list = bilby.gw.detector.InterferometerList([self.ifo1, self.ifo2])
-        bilby.core.utils.check_directory_exists_and_if_not_mkdir('outdir')
+        self.outdir = 'outdir'
+        bilby.core.utils.check_directory_exists_and_if_not_mkdir(self.outdir)
 
     def tearDown(self):
         del self.frequency_arrays
@@ -829,7 +831,7 @@ class TestInterferometerList(unittest.TestCase):
         del self.ifo1
         del self.ifo2
         del self.ifo_list
-        rmtree('outdir')
+        rmtree(self.outdir)
 
     def test_init_with_string(self):
         with self.assertRaises(TypeError):
@@ -895,6 +897,13 @@ class TestInterferometerList(unittest.TestCase):
     def test_inject_signal_pol_and_wg_none(self):
         with self.assertRaises(ValueError):
             self.ifo_list.inject_signal(injection_polarizations=None, waveform_generator=None)
+
+    def test_meta_data(self):
+        ifos_list = [self.ifo1, self.ifo2]
+        ifos = bilby.gw.detector.InterferometerList(ifos_list)
+        self.assertTrue(isinstance(ifos.meta_data, dict))
+        meta_data = {ifo.name: ifo.meta_data for ifo in ifos_list}
+        self.assertEqual(ifos.meta_data, meta_data)
 
     @patch.object(bilby.gw.waveform_generator.WaveformGenerator, 'frequency_domain_strain')
     def test_inject_signal_pol_none_calls_frequency_domain_strain(self, m):
@@ -985,6 +994,15 @@ class TestInterferometerList(unittest.TestCase):
                 outdir='outdir', label='psd')
             with self.assertRaises(TypeError):
                 bilby.gw.detector.InterferometerList.from_hdf5(filename)
+
+    def test_plot_data(self):
+        ifos = bilby.gw.detector.InterferometerList(['H1', 'L1'])
+        ifos.set_strain_data_from_power_spectral_densities(2048, 4)
+        ifos.plot_data(outdir=self.outdir)
+
+        ifos = bilby.gw.detector.InterferometerList(['H1', 'L1', 'V1'])
+        ifos.set_strain_data_from_power_spectral_densities(2048, 4)
+        ifos.plot_data(outdir=self.outdir)
 
 
 class TestPowerSpectralDensityWithoutFiles(unittest.TestCase):

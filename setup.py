@@ -46,7 +46,7 @@ def get_long_description():
     """ Finds the README and reads in the description """
     here = os.path.abspath(os.path.dirname(__file__))
     with open(os.path.join(here, 'README.rst')) as f:
-            long_description = f.read()
+        long_description = f.read()
     return long_description
 
 
@@ -57,7 +57,7 @@ def readfile(filename):
     return filecontents
 
 
-VERSION = '0.3.5'
+VERSION = '0.4.0'
 version_file = write_version_file(VERSION)
 long_description = get_long_description()
 
