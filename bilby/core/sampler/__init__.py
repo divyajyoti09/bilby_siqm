@@ -16,11 +16,13 @@ from .ptemcee import Ptemcee
 from .ptmcmc import PTMCMCSampler
 from .pymc3 import Pymc3
 from .pymultinest import Pymultinest
+from .fake_sampler import FakeSampler
 
 IMPLEMENTED_SAMPLERS = {
     'cpnest': Cpnest, 'dynesty': Dynesty, 'emcee': Emcee, 'nestle': Nestle,
-    'ptemcee': Ptemcee,'ptmcmcsampler': PTMCMCSampler,
-    'pymc3': Pymc3, 'pymultinest': Pymultinest, 'pypolychord': PyPolyChord }
+    'ptemcee': Ptemcee,'ptmcmcsampler' : PTMCMCSampler,
+    'pymc3': Pymc3, 'pymultinest': Pymultinest, 'pypolychord': PyPolyChord,
+    'fake_sampler': FakeSampler }
 
 if command_line_args.sampler_help:
     sampler = command_line_args.sampler_help
@@ -85,6 +87,7 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         overwritten.
     save: bool
         If true, save the priors and results to disk.
+        If hdf5, save as an hdf5 file instead of json.
     result_class: bilby.core.result.Result, or child of
         The result class to use. By default, `bilby.core.result.Result` is used,
         but objects which inherit from this class can be given providing
@@ -181,9 +184,12 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
             result.injection_parameters = conversion_function(
                 result.injection_parameters)
 
-    result.samples_to_posterior(likelihood=likelihood, priors=priors,
+    result.samples_to_posterior(likelihood=likelihood, priors=result.priors,
                                 conversion_function=conversion_function)
-    if save:
+    if save == 'hdf5':
+        result.save_to_file(extension='hdf5')
+        logger.info("Results saved to {}/".format(outdir))
+    elif save:
         result.save_to_file()
         logger.info("Results saved to {}/".format(outdir))
     if plot:

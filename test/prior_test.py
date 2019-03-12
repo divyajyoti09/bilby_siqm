@@ -1,10 +1,9 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 import bilby
 import unittest
 from mock import Mock
 import numpy as np
 import os
-import copy
 from collections import OrderedDict
 
 
@@ -311,12 +310,38 @@ class TestPriorClasses(unittest.TestCase):
         for prior in self.priors:
             if isinstance(prior, bilby.core.prior.Interped):
                 continue  # we cannot test this because of the numpy arrays
+            if isinstance(prior, bilby.core.prior.Beta):
+                continue  # We cannot test this as it has a frozen scipy dist
             elif isinstance(prior, bilby.gw.prior.UniformComovingVolume):
                 repr_prior_string = 'bilby.gw.prior.' + repr(prior)
             else:
                 repr_prior_string = 'bilby.core.prior.' + repr(prior)
             repr_prior = eval(repr_prior_string)
             self.assertEqual(prior, repr_prior)
+
+    def test_set_maximum_setting(self):
+        for prior in self.priors:
+            if isinstance(prior, (
+                    bilby.core.prior.DeltaFunction, bilby.core.prior.Gaussian,
+                    bilby.core.prior.HalfGaussian, bilby.core.prior.LogNormal,
+                    bilby.core.prior.Exponential, bilby.core.prior.StudentT,
+                    bilby.core.prior.Logistic, bilby.core.prior.Cauchy,
+                    bilby.core.prior.Gamma)):
+                continue
+            prior.maximum = (prior.maximum + prior.minimum) / 2
+            self.assertTrue(max(prior.sample(10000)) < prior.maximum)
+
+    def test_set_minimum_setting(self):
+        for prior in self.priors:
+            if isinstance(prior, (
+                    bilby.core.prior.DeltaFunction, bilby.core.prior.Gaussian,
+                    bilby.core.prior.HalfGaussian, bilby.core.prior.LogNormal,
+                    bilby.core.prior.Exponential, bilby.core.prior.StudentT,
+                    bilby.core.prior.Logistic, bilby.core.prior.Cauchy,
+                    bilby.core.prior.Gamma)):
+                continue
+            prior.minimum = (prior.maximum + prior.minimum) / 2
+            self.assertTrue(min(prior.sample(10000)) > prior.minimum)
 
 
 class TestPriorDict(unittest.TestCase):
@@ -380,7 +405,7 @@ class TestPriorDict(unittest.TestCase):
             dec=bilby.core.prior.Cosine(name='dec'),
             ra=bilby.core.prior.Uniform(
                 name='ra', minimum=0, maximum=2 * np.pi),
-            iota=bilby.core.prior.Sine(name='iota'),
+            theta_jn=bilby.core.prior.Sine(name='theta_jn'),
             psi=bilby.core.prior.Uniform(name='psi', minimum=0, maximum=np.pi),
             phase=bilby.core.prior.Uniform(
                 name='phase', minimum=0, maximum=2 * np.pi)
@@ -436,7 +461,7 @@ class TestPriorDict(unittest.TestCase):
             dec=bilby.core.prior.Cosine(name='dec'),
             ra=bilby.core.prior.Uniform(
                 name='ra', minimum=0, maximum=2 * np.pi),
-            iota=bilby.core.prior.Sine(name='iota'),
+            theta_jn=bilby.core.prior.Sine(name='theta_jn'),
             psi=bilby.core.prior.Uniform(name='psi', minimum=0, maximum=np.pi),
             phase=bilby.core.prior.Uniform(
                 name='phase', minimum=0, maximum=2 * np.pi)
