@@ -46,8 +46,7 @@ python-2.7:
     # Install the dependencies specified in the Pipfile
 #    - pipenv install --two --python=/opt/conda/bin/python2 --system --deploy
   script:
-#    - python setup.py install
-    - python -m pip install .
+    - python setup.py install
     # Run tests without finding coverage
     - pytest --ignore=test/utils_py3_test.py
 
@@ -59,8 +58,7 @@ python-3.7:
     # Install the dependencies specified in the Pipfile
 #    - pipenv install --three --python=/opt/conda/bin/python --system --deploy
   script:
-#    - python setup.py install
-    - python -m pip install .
+    - python setup.py install
 
     # Run pyflakes
     - flake8 .
