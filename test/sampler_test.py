@@ -504,6 +504,11 @@ class TestRunningSamplers(unittest.TestCase):
 
 
 class TestNullLikelihood(unittest.TestCase):
+    """
+    Test that when using a likelihood which returns lnL = 0 you recover the
+    prior distribution.
+
+    """
 
     def setUp(self):
         self.priors = prior.PriorDict()
@@ -521,9 +526,6 @@ class TestNullLikelihood(unittest.TestCase):
 
     def test_cpnest(self):
         self._test_sampler('cpnest')
-        # this doesn't run
-        # self._test_sampler('cpnest')
-        # pass
 
     def test_dynesty(self):
         self._test_sampler('dynesty')
@@ -552,7 +554,7 @@ class TestNullLikelihood(unittest.TestCase):
     def _test_sampler(self, sampler):
         result = bilby.run_sampler(
             likelihood=self.likelihood, priors=self.priors, sampler=sampler,
-            nlive=1000, iterations=1000, nwalkers=10, save=False)
+            nlive=1000, iterations=1000, nwalkers=100, save=False)
         pvalues = list()
         for key in self.priors:
             pvalues.append(ks_2samp(
