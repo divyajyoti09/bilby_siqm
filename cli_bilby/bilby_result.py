@@ -29,12 +29,13 @@ import bilby
 
 def setup_command_line_args():
     parser = argparse.ArgumentParser(
-        description="Helper tool for bilby result files",
-        epilog=print(__doc__))
+        description="Helper tool for bilby result files")
     parser.add_argument("-r", "--results", nargs='+', required=True,
                         help="List of results files.")
     parser.add_argument("-c", "--convert", type=str, choices=['json', 'hdf5'],
                         help="Convert all results.", default=False)
+    parser.add_argument("-m", "--merge", action='store_true',
+                        help="Merge all results.", default=False)
     parser.add_argument("-o", "--outdir", type=str, default=None,
                         help="Output directory.")
     parser.add_argument("-b", "--bayes", action='store_true',
@@ -97,3 +98,8 @@ def main():
         print_bayes_factors(results_list)
     if args.ipython:
         drop_to_ipython(results_list)
+    if args.merge:
+        result = bilby.core.result._merge_results(*results_list)
+        result.save_to_file()
+
+main()

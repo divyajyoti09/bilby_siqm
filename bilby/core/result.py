@@ -1246,6 +1246,20 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
     return fig
 
 
+def _merge_two_results(resultA, resultB):
+    result = Result()
+    joined_posterior = pd.concat((resultA.posterior, resultB.posterior))
+    result.posterior = joined_posterior.sample(len(joined_posterior))
+    return result
+
+
+def merge_results(results_list):
+    result = _merge_two_results(results_list[0], results_list[1])
+    result.label = 'TEST'
+    result.outdir = '.'
+    return result
+
+
 def make_pp_plot(results, filename=None, save=True, **kwargs):
     """
     Make a P-P plot for a set of runs with injected signals.
