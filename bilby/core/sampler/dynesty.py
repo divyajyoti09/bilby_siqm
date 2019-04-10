@@ -176,10 +176,13 @@ class Dynesty(NestedSampler):
 
     def _apply_dynesty_boundaries(self):
         if self.kwargs['periodic'] is None:
+            logger.debug("Setting periodic boundaries for keys:")
             self.kwargs['periodic'] = []
-            for i, value in enumerate(self.priors.values()):
-                if value.periodic_boundary:
-                    self.kwargs['periodic'].append(i)
+            for ii, key in enumerate(self.search_parameter_keys):
+                if self.priors[key].periodic_boundary:
+                    self.priors[key].test_valid_for_rescaling = lambda x: np.mod(x, 1)
+                    self.kwargs['periodic'].append(ii)
+                    logger.debug("  {}".format(key))
 
     def run_sampler(self):
         import dynesty
