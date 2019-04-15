@@ -408,3 +408,7 @@ class Dynesty(NestedSampler):
         self.result.log_evidence = np.nan
         self.result.log_evidence_err = np.nan
         return self.result
+
+    def prior_transform(self, theta):
+        theta = [t % 1 for t in theta]
+        return super(Dynesty, self).prior_transform(theta)
