@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from copy import deepcopy
 import os
 import sys
 import pickle
@@ -397,9 +398,9 @@ class Dynesty(NestedSampler):
 
         if plot and self.check_point_plot:
             import dynesty.plotting as dyplot
-            labels = self.search_parameter_keys
-            for label in labels:
-                label.replace('_', ' ')
+            labels = deepcopy(self.search_parameter_keys)
+            for i, label in enumerate(labels):
+                labels[i] = label.replace('_', ' ')
             fn = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
             try:
                 fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
