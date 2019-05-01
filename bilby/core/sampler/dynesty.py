@@ -407,6 +407,7 @@ class Dynesty(NestedSampler):
                 fig.savefig(fn)
             except RuntimeError as e:
                 logger.warning(e)
+                logger.warning('Failed to create dynesty state plot at checkpoint')
 
     def generate_trace_plots(self, dynesty_results):
         check_directory_exists_and_if_not_mkdir(self.outdir)
