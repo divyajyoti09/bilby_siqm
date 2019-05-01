@@ -398,6 +398,8 @@ class Dynesty(NestedSampler):
         if plot and self.check_point_plot:
             import dynesty.plotting as dyplot
             labels = self.search_parameter_keys
+            for label in labels:
+                label.replace('_', ' ')
             fn = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
             fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
             fig.tight_layout()
