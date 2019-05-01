@@ -401,9 +401,12 @@ class Dynesty(NestedSampler):
             for label in labels:
                 label.replace('_', ' ')
             fn = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
-            fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
-            fig.tight_layout()
-            fig.savefig(fn)
+            try:
+                fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
+                fig.tight_layout()
+                fig.savefig(fn)
+            except RuntimeError as e:
+                logger.warning(e)
 
     def generate_trace_plots(self, dynesty_results):
         check_directory_exists_and_if_not_mkdir(self.outdir)
