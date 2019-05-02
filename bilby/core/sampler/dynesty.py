@@ -398,14 +398,13 @@ class Dynesty(NestedSampler):
 
         if plot and self.check_point_plot:
             import dynesty.plotting as dyplot
-            labels = deepcopy(self.search_parameter_keys)
-            for i, label in enumerate(labels):
-                labels[i] = label.replace('_', ' ')
+            labels = [label.replace('_', ' ') for label in self.search_parameter_keys]
             fn = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
             try:
                 fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
                 fig.tight_layout()
                 fig.savefig(fn)
+                fig.close()
             except RuntimeError as e:
                 logger.warning(e)
                 logger.warning('Failed to create dynesty state plot at checkpoint')
