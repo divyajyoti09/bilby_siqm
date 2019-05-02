@@ -1,11 +1,11 @@
 from __future__ import absolute_import
 
-from copy import deepcopy
 import os
 import sys
 import pickle
 import signal
 
+import matplotlib.pyplot as plt
 import numpy as np
 from pandas import DataFrame
 
@@ -399,13 +399,17 @@ class Dynesty(NestedSampler):
         if plot and self.check_point_plot:
             import dynesty.plotting as dyplot
             labels = [label.replace('_', ' ') for label in self.search_parameter_keys]
-            fn = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
+            filename = "{}/{}_checkpoint_trace.png".format(self.outdir, self.label)
             try:
-                fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
+                truths = None
+                if self.injection_parameters is not None:
+                    truths = [self.injection_parameters[key] for key in self.search_parameter_keys]
+                fig = dyplot.traceplot(self.sampler.results, labels=labels,
+                                       truths=truths)[0]
                 fig.tight_layout()
-                fig.savefig(fn)
-                fig.clf()
-            except RuntimeError as e:
+                fig.savefig(filename)
+                plt.close('all')
+            except (RuntimeError, np.linalg.linalg.LinAlgError) as e:
                 logger.warning(e)
                 logger.warning('Failed to create dynesty state plot at checkpoint')
 
