@@ -404,7 +404,7 @@ class Dynesty(NestedSampler):
                 fig = dyplot.traceplot(self.sampler.results, labels=labels)[0]
                 fig.tight_layout()
                 fig.savefig(fn)
-                fig.close()
+                fig.clf()
             except RuntimeError as e:
                 logger.warning(e)
                 logger.warning('Failed to create dynesty state plot at checkpoint')
