@@ -469,7 +469,7 @@ def check_directory_exists_and_if_not_mkdir(directory):
 
     """
     if not os.path.exists(directory):
-        os.makedirs(directory)
+        os.makedirs(directory, exist_ok=True)
         logger.debug('Making directory {}'.format(directory))
     else:
         logger.debug('Directory {} exists'.format(directory))
