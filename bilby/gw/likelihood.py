@@ -47,12 +47,18 @@ class GravitationalWaveTransient(likelihood.Likelihood):
     distance_marginalization: bool, optional
         If true, marginalize over distance in the likelihood.
         This uses a look up table calculated at run time.
+        The distance prior is set to be a delta function at the minimum
+        distance allowed in the prior being marginalised over.
     time_marginalization: bool, optional
         If true, marginalize over time in the likelihood.
-        This uses a FFT.
+        This uses a FFT to calculate the likelihood over a regularly spaced
+        grid.
+        In order to cover the whole space the prior is set to be uniform over
+        the spacing of the array of times.
     phase_marginalization: bool, optional
         If true, marginalize over phase in the likelihood.
         This is done analytically using a Bessel function.
+        The phase prior is set to be a delta function at phase=0.
     priors: dict, optional
         If given, used in the distance and phase marginalization.
     distance_marginalization_lookup_table: (dict, str), optional
@@ -95,7 +101,8 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         if self.time_marginalization:
             self._check_prior_is_set(key='geocent_time')
             self._setup_time_marginalization()
-            priors['geocent_time'] = float(self.interferometers.start_time)
+            priors['geocent_time'] = Uniform(
+                minimum=self._times[0], maximum=self._times[1])
 
         if self.phase_marginalization:
             self._check_prior_is_set(key='phase')
@@ -238,6 +245,9 @@ class GravitationalWaveTransient(likelihood.Likelihood):
                 d_inner_h_squared_tc_array += per_detector_snr.d_inner_h_squared_tc_array
 
         if self.time_marginalization:
+            time_jitter = self.parameters['geocent_time'] - self.interferometers.start_time
+            times = self._times + time_jitter
+            time_prior_array = self.priors['geocent_time'].prob(times) * self._delta_tc
 
             if self.distance_marginalization:
                 rho_mf_ref_tc_array, rho_opt_ref = self._setup_rho(
@@ -249,15 +259,15 @@ class GravitationalWaveTransient(likelihood.Likelihood):
                     dist_marged_log_l_tc_array = self._interp_dist_margd_loglikelihood(
                         rho_mf_ref_tc_array.real, rho_opt_ref)
                 log_l = logsumexp(dist_marged_log_l_tc_array,
-                                  b=self.time_prior_array)
+                                  b=time_prior_array)
             elif self.phase_marginalization:
                 log_l = logsumexp(self._bessel_function_interped(abs(
                     d_inner_h_squared_tc_array)),
-                    b=self.time_prior_array) - optimal_snr_squared / 2
+                    b=time_prior_array) - optimal_snr_squared / 2
             else:
                 log_l = logsumexp(
                     d_inner_h_squared_tc_array.real,
-                    b=self.time_prior_array) - optimal_snr_squared / 2
+                    b=time_prior_array) - optimal_snr_squared / 2
 
         elif self.distance_marginalization:
             rho_mf_ref, rho_opt_ref = self._setup_rho(d_inner_h, optimal_snr_squared)
@@ -335,25 +345,27 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         if signal_polarizations is None:
             signal_polarizations = \
                 self.waveform_generator.frequency_domain_strain(self.parameters)
-        n_time_steps = int(self.waveform_generator.duration * 16384)
-        d_inner_h = np.zeros(n_time_steps, dtype=np.complex)
-        psd = np.ones(n_time_steps)
-        signal_long = np.zeros(n_time_steps, dtype=np.complex)
-        data = np.zeros(n_time_steps, dtype=np.complex)
-        h_inner_h = np.zeros(1)
-        for ifo in self.interferometers:
-            ifo_length = len(ifo.frequency_domain_strain)
-            signal = ifo.get_detector_response(
-                signal_polarizations, self.parameters)
-            signal_long[:ifo_length] = signal
-            data[:ifo_length] = np.conj(ifo.frequency_domain_strain)
-            psd[:ifo_length] = ifo.power_spectral_density_array
-            d_inner_h += np.fft.fft(signal_long * data / psd)
-            h_inner_h += ifo.optimal_snr_squared(signal=signal).real
+        d_inner_h = 0.
+        optimal_snr_squared = 0.
+        complex_matched_filter_snr = 0.
+        d_inner_h_tc_array = np.zeros(
+            self.interferometers.frequency_array[0:-1].shape,
+            dtype=np.complex128)
+
+        for interferometer in self.interferometers:
+            per_detector_snr = self.calculate_snrs(
+                signal_polarizations, interferometer)
+
+            d_inner_h += per_detector_snr.d_inner_h
+            optimal_snr_squared += per_detector_snr.optimal_snr_squared
+            complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
+
+            if self.time_marginalization:
+                d_inner_h_tc_array += per_detector_snr.d_inner_h_squared_tc_array
 
         if self.distance_marginalization:
             rho_mf_ref_tc_array, rho_opt_ref = self._setup_rho(
-                d_inner_h, h_inner_h)
+                d_inner_h_tc_array, optimal_snr_squared)
             if self.phase_marginalization:
                 time_log_like = self._interp_dist_margd_loglikelihood(
                     abs(rho_mf_ref_tc_array), rho_opt_ref)
@@ -361,23 +373,19 @@ class GravitationalWaveTransient(likelihood.Likelihood):
                 time_log_like = self._interp_dist_margd_loglikelihood(
                     rho_mf_ref_tc_array.real, rho_opt_ref)
         elif self.phase_marginalization:
-            time_log_like = (self._bessel_function_interped(abs(d_inner_h)) -
-                             h_inner_h.real / 2)
+            time_log_like = (
+                self._bessel_function_interped(abs(d_inner_h_tc_array)) -
+                optimal_snr_squared.real / 2)
         else:
-            time_log_like = (d_inner_h.real - h_inner_h.real / 2)
+            time_log_like = (d_inner_h_tc_array.real - optimal_snr_squared.real / 2)
 
-        times = create_time_series(
-            sampling_frequency=16384,
-            starting_time=self.waveform_generator.start_time,
-            duration=self.waveform_generator.duration)
+        time_jitter = self.parameters['geocent_time'] - self.interferometers.start_time
+        times = self._times + time_jitter
 
         time_prior_array = self.priors['geocent_time'].prob(times)
         time_post = (
             np.exp(time_log_like - max(time_log_like)) * time_prior_array)
 
-        keep = (time_post > max(time_post) / 1000)
-        time_post = time_post[keep]
-        times = times[keep]
         new_time = Interped(times, time_post).sample()
         return new_time
 
@@ -616,14 +624,14 @@ class GravitationalWaveTransient(likelihood.Likelihood):
             bounds_error=False, fill_value=(0, np.nan))
 
     def _setup_time_marginalization(self):
-        delta_tc = 2 / self.waveform_generator.sampling_frequency
+        self._delta_tc = 2 / self.waveform_generator.sampling_frequency
         self._times =\
             self.interferometers.start_time + np.linspace(
                 0, self.interferometers.duration,
                 int(self.interferometers.duration / 2 *
                     self.waveform_generator.sampling_frequency + 1))[1:]
-        self.time_prior_array =\
-            self.priors['geocent_time'].prob(self._times) * delta_tc
+        self.time_prior_array = \
+            self.priors['geocent_time'].prob(self._times) * self._delta_tc
 
     @property
     def interferometers(self):
