@@ -105,6 +105,7 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         if self.time_marginalization:
             self._check_prior_is_set(key='geocent_time')
             self._setup_time_marginalization()
+            priors['geocent_time'] = float(self.interferometers.start_time)
             priors['time_jitter'] = Uniform(
                 minimum=- self._delta_tc / 2, maximum=self._delta_tc / 2)
 
@@ -253,7 +254,7 @@ class GravitationalWaveTransient(likelihood.Likelihood):
 
         if self.time_marginalization:
             times = self._times + self.parameters['time_jitter']
-            self.parameters['geocent_time'] -= self.parameters['jitter_time']
+            self.parameters['geocent_time'] -= self.parameters['time_jitter']
             self.time_prior_array = self.priors['geocent_time'].prob(times) * self._delta_tc
             log_l = self.time_marginalized_likelihood(
                 d_inner_h_tc_array=d_inner_h_tc_array,
@@ -335,7 +336,7 @@ class GravitationalWaveTransient(likelihood.Likelihood):
             signal_polarizations = \
                 self.waveform_generator.frequency_domain_strain(self.parameters)
         d_inner_h = 0.
-        optimal_snr_squared = 0.
+        h_inner_h = 0.
         complex_matched_filter_snr = 0.
         d_inner_h_tc_array = np.zeros(
             self.interferometers.frequency_array[0:-1].shape,
@@ -346,7 +347,7 @@ class GravitationalWaveTransient(likelihood.Likelihood):
                 signal_polarizations, interferometer)
 
             d_inner_h += per_detector_snr.d_inner_h
-            optimal_snr_squared += per_detector_snr.optimal_snr_squared
+            h_inner_h += per_detector_snr.optimal_snr_squared
             complex_matched_filter_snr += per_detector_snr.complex_matched_filter_snr
 
             if self.time_marginalization:
@@ -358,9 +359,9 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         elif self.phase_marginalization:
             time_log_like = (
                 self._bessel_function_interped(abs(d_inner_h_tc_array)) -
-                optimal_snr_squared.real / 2)
+                h_inner_h.real / 2)
         else:
-            time_log_like = (d_inner_h_tc_array.real - optimal_snr_squared.real / 2)
+            time_log_like = (d_inner_h_tc_array.real - h_inner_h.real / 2)
 
         times = self._times + self.parameters['time_jitter']
 
