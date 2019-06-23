@@ -9,6 +9,34 @@
 ### Removed
 - 
 
+## [0.5.2] 2019-06-18
+### Added
+- Method to read data in using gwpy get (and associated example)
+- Adds a catch for broken resume files with improves reporting
+
+### Changed
+- Updated and fixed bugs in examples
+- Resolve sampling time persistence for runs which are interupted
+- Improvements to the PP plot
+- Speed up of the distance calculation
+- Fixed a bug in the inteference of bilby command line arguments with user specified command lines
+- Generalised the consistency checks for ResultLists
+- Fixes to some tests
+- Makes the parameter conversion a static method rather than a lambda expression
+
+## [0.5.1] 2019-06-05
+### Added
+- Option for the GraceDB service URL
+- Precessing BNS
+- Functionality to make a waveform plot
+
+### Changed
+- Changes to ROQ weight generation: finer time-steps and fixed a bug in the time definition
+- Fixed typo "CompactBinaryCoalesnce" -> "CompactBinaryCoalescence" (old class now has deprecation warning)
+- Fixed a minor bug in the frequency mask caching
+- Minor refractoring of the GWT likelihood and detector tests
+- Initial samples in dynesty now generated from the constrained prior
+
 ## [0.5.0] 2019-05-08
 
 ### Added

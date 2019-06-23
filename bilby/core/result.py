@@ -101,7 +101,8 @@ class Result(object):
                  log_evidence_err=np.nan, log_noise_evidence=np.nan,
                  log_bayes_factor=np.nan, log_likelihood_evaluations=None,
                  log_prior_evaluations=None, sampling_time=None, nburn=None,
-                 walkers=None, max_autocorrelation_time=None, use_ratio=None,
+                 num_likelihood_evaluations=None, walkers=None,
+                 max_autocorrelation_time=None, use_ratio=None,
                  parameter_labels=None, parameter_labels_with_unit=None,
                  gzip=False, version=None):
         """ A class to store the results of the sampling run
@@ -130,6 +131,8 @@ class Result(object):
             Natural log evidences
         log_likelihood_evaluations: array_like
             The evaluations of the likelihood for each sample point
+        num_likelihood_evaluations: int
+            The number of times the likelihood function is called
         log_prior_evaluations: array_like
             The evaluations of the prior for each sample point
         sampling_time: float
@@ -182,6 +185,7 @@ class Result(object):
         self.log_bayes_factor = log_bayes_factor
         self.log_likelihood_evaluations = log_likelihood_evaluations
         self.log_prior_evaluations = log_prior_evaluations
+        self.num_likelihood_evaluations = num_likelihood_evaluations
         self.sampling_time = sampling_time
         self.version = version
         self.max_autocorrelation_time = max_autocorrelation_time
@@ -328,6 +332,18 @@ class Result(object):
     @samples.setter
     def samples(self, samples):
         self._samples = samples
+
+    @property
+    def num_likelihood_evaluations(self):
+        """ number of likelihood evaluations """
+        if self._num_likelihood_evaluations is not None:
+            return self._num_likelihood_evaluations
+        else:
+            raise ValueError("Result object has no stored likelihood evaluations")
+
+    @num_likelihood_evaluations.setter
+    def num_likelihood_evaluations(self, num_likelihood_evaluations):
+        self._num_likelihood_evaluations = num_likelihood_evaluations
 
     @property
     def nested_samples(self):
@@ -800,7 +816,7 @@ class Result(object):
         """
 
         # If in testing mode, not corner plots are generated
-        if utils.command_line_args.test:
+        if utils.command_line_args.bilby_test_mode:
             return
 
         # bilby default corner kwargs. Overwritten by anything passed to kwargs
@@ -909,7 +925,7 @@ class Result(object):
             logger.warning("Cannot plot_walkers as no walkers are saved")
             return
 
-        if utils.command_line_args.test:
+        if utils.command_line_args.bilby_test_mode:
             return
 
         nwalkers, nsteps, ndim = self.walkers.shape
@@ -1029,7 +1045,7 @@ class Result(object):
         ----------
         likelihood: bilby.likelihood.GravitationalWaveTransient, optional
             GravitationalWaveTransient likelihood used for sampling.
-        priors: dict, optional
+        priors: bilby.prior.PriorDict, optional
             Dictionary of prior object, used to fill in delta function priors.
         conversion_function: function, optional
             Function which adds in extra parameters to the data frame,
@@ -1044,13 +1060,9 @@ class Result(object):
                 data_frame, priors)
             data_frame['log_likelihood'] = getattr(
                 self, 'log_likelihood_evaluations', np.nan)
-            if self.log_prior_evaluations is None:
-                ln_prior = list()
-                for ii in range(len(data_frame)):
-                    ln_prior.append(
-                        self.priors.ln_prob(dict(
-                            data_frame[self.search_parameter_keys].iloc[ii])))
-                data_frame['log_prior'] = np.array(ln_prior)
+            if self.log_prior_evaluations is None and priors is not None:
+                data_frame['log_prior'] = priors.ln_prob(
+                    dict(data_frame[self.search_parameter_keys]), axis=0)
             else:
                 data_frame['log_prior'] = self.log_prior_evaluations
         if conversion_function is not None:
@@ -1299,10 +1311,10 @@ class ResultList(list):
         if result.label is not None:
             result.label += '_combined'
 
-        self._check_consistent_sampler()
-        self._check_consistent_data()
-        self._check_consistent_parameters()
-        self._check_consistent_priors()
+        self.check_consistent_sampler()
+        self.check_consistent_data()
+        self.check_consistent_parameters()
+        self.check_consistent_priors()
 
         # check which kind of sampler was used: MCMC or Nested Sampling
         if result.nested_samples is not None:
@@ -1315,7 +1327,7 @@ class ResultList(list):
         return result
 
     def _combine_nested_sampled_runs(self, result):
-        self._check_nested_samples()
+        self.check_nested_samples()
         log_evidences = np.array([res.log_evidence for res in self])
         result.log_evidence = logsumexp(log_evidences, b=1. / len(self))
         if result.use_ratio:
@@ -1324,7 +1336,10 @@ class ResultList(list):
         else:
             result.log_bayes_factor = result.log_evidence - result.log_noise_evidence
         log_errs = [res.log_evidence_err for res in self if np.isfinite(res.log_evidence_err)]
-        result.log_evidence_err = logsumexp(2 * np.array(log_errs), b=1. / len(self))
+        if len(log_errs) > 0:
+            result.log_evidence_err = logsumexp(2 * np.array(log_errs), b=1. / len(self))
+        else:
+            result.log_evidence_err = np.nan
         result_weights = np.exp(log_evidences - np.max(log_evidences))
         posteriors = []
         for res, frac in zip(self, result_weights):
@@ -1335,32 +1350,31 @@ class ResultList(list):
         result.sampler_kwargs = None
         return posteriors, result
 
-    def _check_nested_samples(self):
+    def check_nested_samples(self):
         for res in self:
             try:
                 res.nested_samples
             except ValueError:
-                raise CombineResultError("Cannot combine results: No nested samples available "
-                                         "in all results")
+                raise ResultListError("Not all results contain nested samples")
 
-    def _check_consistent_priors(self):
+    def check_consistent_priors(self):
         for res in self:
             for p in self[0].priors.keys():
                 if not self[0].priors[p] == res.priors[p] or len(self[0].priors) != len(res.priors):
-                    raise CombineResultError("Cannot combine results: inconsistent priors")
+                    raise ResultListError("Inconsistent priors between results")
 
-    def _check_consistent_parameters(self):
+    def check_consistent_parameters(self):
         if not np.all([set(self[0].search_parameter_keys) == set(res.search_parameter_keys) for res in self]):
-            raise CombineResultError("Cannot combine results: inconsistent parameters")
+            raise ResultListError("Inconsistent parameters between results")
 
-    def _check_consistent_data(self):
+    def check_consistent_data(self):
         if not np.all([res.log_noise_evidence == self[0].log_noise_evidence for res in self])\
                 and not np.all([np.isnan(res.log_noise_evidence) for res in self]):
-            raise CombineResultError("Cannot combine results: inconsistent data")
+            raise ResultListError("Inconsistent data between results")
 
-    def _check_consistent_sampler(self):
+    def check_consistent_sampler(self):
         if not np.all([res.sampler == self[0].sampler for res in self]):
-            raise CombineResultError("Cannot combine results: inconsistent samplers")
+            raise ResultListError("Inconsistent samplers between results")
 
 
 def plot_multiple(results, filename=None, labels=None, colours=None,
@@ -1447,7 +1461,8 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
 
 
 def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
-                 lines=None, legend_fontsize=9, keys=None, **kwargs):
+                 lines=None, legend_fontsize='x-small', keys=None, title=True,
+                 **kwargs):
     """
     Make a P-P plot for a set of runs with injected signals.
 
@@ -1477,6 +1492,9 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
         matplotlib figure and a NamedTuple with attributes `combined_pvalue`,
         `pvalues`, and `names`.
     """
+
+    if keys is None:
+        keys = results[0].search_parameter_keys
 
     credible_levels = pd.DataFrame()
     for result in results:
@@ -1510,12 +1528,30 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
     for ii, key in enumerate(credible_levels):
         pp = np.array([sum(credible_levels[key].values < xx) /
                        len(credible_levels) for xx in x_values])
-        plt.plot(x_values, pp, lines[ii], label=key, **kwargs)
         pvalue = scipy.stats.kstest(credible_levels[key], 'uniform').pvalue
         pvalues.append(pvalue)
         logger.info("{}: {}".format(key, pvalue))
 
-    ax.legend(fontsize=legend_fontsize)
+        try:
+            name = results[0].priors[key].latex_label
+        except AttributeError:
+            name = key
+        label = "{} ({:2.3f})".format(name, pvalue)
+        plt.plot(x_values, pp, lines[ii], label=label, **kwargs)
+
+    Pvals = namedtuple('pvals', ['combined_pvalue', 'pvalues', 'names'])
+    pvals = Pvals(combined_pvalue=scipy.stats.combine_pvalues(pvalues)[1],
+                  pvalues=pvalues,
+                  names=list(credible_levels.keys()))
+    logger.info(
+        "Combined p-value: {}".format(pvals.combined_pvalue))
+
+    if title:
+        ax.set_title("N={}, p-value={:2.4f}".format(
+            len(results), pvals.combined_pvalue))
+    ax.set_xlabel("C.I.")
+    ax.set_ylabel("Fraction of events in C.I.")
+    ax.legend(linewidth=1, labelspacing=0.25, fontsize=legend_fontsize)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     fig.tight_layout()
@@ -1524,12 +1560,6 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
             filename = 'outdir/pp.png'
         fig.savefig(filename, dpi=500)
 
-    Pvals = namedtuple('pvals', ['combined_pvalue', 'pvalues', 'names'])
-    pvals = Pvals(combined_pvalue=scipy.stats.combine_pvalues(pvalues)[1],
-                  pvalues=pvalues,
-                  names=list(credible_levels.keys()))
-    logger.info(
-        "Combined p-value: {}".format(pvals.combined_pvalue))
     return fig, pvals
 
 
@@ -1537,7 +1567,7 @@ class ResultError(Exception):
     """ Base exception for all Result related errors """
 
 
-class CombineResultError(ResultError):
+class ResultListError(ResultError):
     """ For Errors occuring during combining results. """
 
 

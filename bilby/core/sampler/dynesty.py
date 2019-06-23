@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import datetime
 import os
 import sys
 import pickle
@@ -116,10 +117,17 @@ class Dynesty(NestedSampler):
         logger.info("Checkpoint every n_check_point = {}".format(self.n_check_point))
 
         self.resume_file = '{}/{}_resume.pickle'.format(self.outdir, self.label)
+        self.sampling_time = datetime.timedelta()
 
         signal.signal(signal.SIGTERM, self.write_current_state_and_exit)
         signal.signal(signal.SIGINT, self.write_current_state_and_exit)
         signal.signal(signal.SIGALRM, self.write_current_state_and_exit)
+
+    def __getstate__(self):
+        """ For pickle: remove external_sampler, which can be an unpicklable "module" """
+        state = self.__dict__.copy()
+        del state['external_sampler']
+        return state
 
     @property
     def sampler_function_kwargs(self):
@@ -202,6 +210,10 @@ class Dynesty(NestedSampler):
 
     def run_sampler(self):
         import dynesty
+        if self.kwargs['live_points'] is None:
+            self.kwargs['live_points'] = (
+                self.get_initial_points_from_prior(
+                    self.kwargs['nlive']))
         self.sampler = dynesty.NestedSampler(
             loglikelihood=self.log_likelihood,
             prior_transform=self.prior_transform,
@@ -232,8 +244,10 @@ class Dynesty(NestedSampler):
         self.result.log_likelihood_evaluations = self.reorder_loglikelihoods(
             unsorted_loglikelihoods=out.logl, unsorted_samples=out.samples,
             sorted_samples=self.result.samples)
+        self.calc_likelihood_count()
         self.result.log_evidence = out.logz[-1]
         self.result.log_evidence_err = out.logzerr[-1]
+        self.result.sampling_time = self.sampling_time
 
         if self.plot:
             self.generate_trace_plots(out)
@@ -256,6 +270,7 @@ class Dynesty(NestedSampler):
         sampler_kwargs = self.sampler_function_kwargs.copy()
         sampler_kwargs['maxcall'] = self.n_check_point
         sampler_kwargs['add_live'] = False
+        self.start_time = datetime.datetime.now()
         while True:
             sampler_kwargs['maxcall'] += self.n_check_point
             self.sampler.run_nested(**sampler_kwargs)
@@ -265,7 +280,6 @@ class Dynesty(NestedSampler):
 
             self.write_current_state()
 
-        self.read_saved_state()
         sampler_kwargs['add_live'] = True
         self.sampler.run_nested(**sampler_kwargs)
         return self.sampler.results
@@ -297,10 +311,14 @@ class Dynesty(NestedSampler):
 
         if os.path.isfile(self.resume_file):
             logger.info("Reading resume file {}".format(self.resume_file))
-            with open(self.resume_file, 'rb') as file:
-                saved = pickle.load(file)
-            logger.info(
-                "Succesfuly read resume file {}".format(self.resume_file))
+            try:
+                with open(self.resume_file, 'rb') as file:
+                    saved = pickle.load(file)
+                logger.info(
+                    "Succesfuly read resume file {}".format(self.resume_file))
+            except EOFError as e:
+                logger.warning("Resume file reading failed with error {}".format(e))
+                return False
 
             self.sampler.saved_u = list(saved['unit_cube_samples'])
             self.sampler.saved_v = list(saved['physical_samples'])
@@ -325,6 +343,7 @@ class Dynesty(NestedSampler):
             self.sampler.live_bound = saved['live_bound']
             self.sampler.live_it = saved['live_it']
             self.sampler.added_live = saved['added_live']
+            self.sampling_time += datetime.timedelta(seconds=saved['sampling_time'])
             return True
 
         else:
@@ -356,6 +375,10 @@ class Dynesty(NestedSampler):
         check_directory_exists_and_if_not_mkdir(self.outdir)
         logger.info("Writing checkpoint file {}".format(self.resume_file))
 
+        end_time = datetime.datetime.now()
+        self.sampling_time += end_time - self.start_time
+        self.start_time = end_time
+
         current_state = dict(
             unit_cube_samples=self.sampler.saved_u,
             physical_samples=self.sampler.saved_v,
@@ -371,6 +394,7 @@ class Dynesty(NestedSampler):
             boundidx=self.sampler.saved_boundidx,
             bounditer=self.sampler.saved_bounditer,
             scale=self.sampler.saved_scale,
+            sampling_time=self.sampling_time.total_seconds()
         )
 
         current_state.update(
@@ -428,7 +452,6 @@ class Dynesty(NestedSampler):
         sampler_kwargs['maxiter'] = 2
 
         self.sampler.run_nested(**sampler_kwargs)
-
         self.result.samples = pd.DataFrame(
             self.priors.sample(100))[self.search_parameter_keys].values
         self.result.log_evidence = np.nan
