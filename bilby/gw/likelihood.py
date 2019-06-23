@@ -55,6 +55,8 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         grid.
         In order to cover the whole space the prior is set to be uniform over
         the spacing of the array of times.
+        If using time marginalisation a "jitter" parameter is added to the
+        prior which modifies the position of the grid of times.
     phase_marginalization: bool, optional
         If true, marginalize over phase in the likelihood.
         This is done analytically using a Bessel function.
@@ -101,8 +103,8 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         if self.time_marginalization:
             self._check_prior_is_set(key='geocent_time')
             self._setup_time_marginalization()
-            priors['geocent_time'] = Uniform(
-                minimum=self._times[0], maximum=self._times[1])
+            priors['time_jitter'] = Uniform(
+                minimum=- self._delta_tc / 2, maximum=self._delta_tc / 2)
 
         if self.phase_marginalization:
             self._check_prior_is_set(key='phase')
@@ -229,6 +231,8 @@ class GravitationalWaveTransient(likelihood.Likelihood):
         d_inner_h = 0.
         optimal_snr_squared = 0.
         complex_matched_filter_snr = 0.
+        if self.time_marginalization:
+            self.parameters['geocent_time'] += self.parameters['time_jitter']
         d_inner_h_squared_tc_array = np.zeros(
             self.interferometers.frequency_array[0:-1].shape,
             dtype=np.complex128)
@@ -245,8 +249,8 @@ class GravitationalWaveTransient(likelihood.Likelihood):
                 d_inner_h_squared_tc_array += per_detector_snr.d_inner_h_squared_tc_array
 
         if self.time_marginalization:
-            time_jitter = self.parameters['geocent_time'] - self.interferometers.start_time
-            times = self._times + time_jitter
+            times = self._times + self.parameters['time_jitter']
+            self.parameters['geocent_time'] -= self.parameters['jitter_time']
             time_prior_array = self.priors['geocent_time'].prob(times) * self._delta_tc
 
             if self.distance_marginalization:
