@@ -1051,9 +1051,10 @@ class Result(object):
             Function which adds in extra parameters to the data frame,
             should take the data_frame, likelihood and prior as arguments.
         """
-        try:
-            data_frame = self.posterior
-        except ValueError:
+        if self._posterior is not None:
+            data_frame = self._posterior
+        else:
+            logger.debug("_posterior attribute is None, attempt to construct")
             data_frame = pd.DataFrame(
                 self.samples, columns=self.search_parameter_keys)
             data_frame = self._add_prior_fixed_values_to_posterior(
@@ -1061,8 +1062,9 @@ class Result(object):
             data_frame['log_likelihood'] = getattr(
                 self, 'log_likelihood_evaluations', np.nan)
             if self.log_prior_evaluations is None and priors is not None:
-                data_frame['log_prior'] = priors.ln_prob(
-                    dict(data_frame[self.search_parameter_keys]), axis=0)
+                data_frame['log_prior'] = [
+                    priors.ln_prob(dict(s)) for _, s in
+                    data_frame[self.search_parameter_keys].iterrows()]
             else:
                 data_frame['log_prior'] = self.log_prior_evaluations
         if conversion_function is not None:
