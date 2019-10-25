@@ -11,9 +11,9 @@ label = "dirichlet_"
 priors = DirichletPriorDict(n_dim=n_dim, label=label)
 
 injection_parameters = dict(
-    dirichlet_0=1/3,
-    dirichlet_1=1/3,
-    dirichlet_2=1/3,
+    dirichlet_0=1 / 3,
+    dirichlet_1=1 / 3,
+    dirichlet_2=1 / 3,
 )
 data = [injection_parameters[label + str(ii)] * 1000 for ii in range(n_dim)]
 
