@@ -546,7 +546,14 @@ class ConditionalPriorDict(PriorDict):
             raise IllegalConditionsException("The current set of priors contains unresolveable conditions.")
         res = dict()
         for key in subset_dict.sorted_keys:
-            res[key] = subset_dict[key].sample(size=size, **subset_dict.get_required_variables(key))
+            if isinstance(self[key], Prior):
+                if isinstance(self[key], Constraint):
+                    continue
+                else:
+                    res[key] = self[key].sample(
+                        size=size, **subset_dict.get_required_variables(key))
+            else:
+                logger.debug('{} not a known prior.'.format(key))
         return res
 
     def get_required_variables(self, key):
@@ -661,6 +668,48 @@ class ConditionalPriorDict(PriorDict):
     def __delitem__(self, key):
         super(ConditionalPriorDict, self).__delitem__(key)
         self._resolve_conditions()
+
+
+class DirichletPriorDict(ConditionalPriorDict):
+
+    def __init__(self, n_dim=None, label="dirichlet_"):
+        self.n_dim = n_dim
+        self.label = label
+        super(DirichletPriorDict, self).__init__(dictionary=dict())
+        for ii in range(n_dim - 1):
+            self[label + "{}".format(ii)] = Dirichlet(
+                order=ii, n_dimensions=n_dim, label=label
+            )
+
+    def copy(self, **kwargs):
+        return self.__class__(n_dim=self.n_dim, label=self.label)
+
+    def _get_json_dict(self):
+        total_dict = dict()
+        total_dict["__prior_dict__"] = True
+        total_dict["__module__"] = self.__module__
+        total_dict["__name__"] = self.__class__.__name__
+        total_dict["n_dim"] = self.n_dim
+        total_dict["label"] = self.label
+        return total_dict
+
+    @classmethod
+    def _get_from_json_dict(cls, prior_dict):
+        try:
+            cls == getattr(
+                import_module(prior_dict["__module__"]),
+                prior_dict["__name__"])
+        except ImportError:
+            logger.debug("Cannot import prior module {}.{}".format(
+                prior_dict["__module__"], prior_dict["__name__"]
+            ))
+        except KeyError:
+            logger.debug("Cannot find module name to load")
+        for key in ["__module__", "__name__", "__prior_dict__"]:
+            if key in prior_dict:
+                del prior_dict[key]
+        obj = cls(**prior_dict)
+        return obj
 
 
 def create_default_prior(name, default_priors_file=None):
@@ -3584,6 +3633,35 @@ ConditionalGamma = conditional_prior_factory(Gamma)
 ConditionalChiSquared = conditional_prior_factory(ChiSquared)
 ConditionalFermiDirac = conditional_prior_factory(FermiDirac)
 ConditionalInterped = conditional_prior_factory(Interped)
+
+
+class Dirichlet(ConditionalBeta):
+
+    def __init__(self, order, n_dimensions, label):
+        super(Dirichlet, self).__init__(
+            minimum=0, maximum=1, alpha=1, beta=n_dimensions - order - 1,
+            name=label + str(order),
+            condition_func=self.dirichlet_condition
+        )
+        self.label = label
+        self.n_dimensions = n_dimensions
+        self.order = order
+        self._required_variables = [
+            label + str(ii) for ii in range(order)
+        ]
+        self.__class__.__name__ = 'Dirichlet'
+
+    def dirichlet_condition(self, reference_parms, **kwargs):
+        remaining = 1 - sum(
+            [kwargs[self.label + str(ii)] for ii in range(self.order)]
+        )
+        return dict(minimum=reference_parms["minimum"], maximum=remaining)
+
+    def __repr__(self):
+        return Prior.__repr__(self)
+
+    def get_instantiation_dict(self):
+        return Prior.get_instantiation_dict(self)
 
 
 class PriorException(Exception):
