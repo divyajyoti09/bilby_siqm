@@ -12,7 +12,8 @@ import numpy as np
 import scipy.stats
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
-from scipy.special import erf, erfinv
+from scipy.special import erf, erfinv, xlogy, log1p,\
+    gammaln, gammainc, gammaincinv, stdtr, stdtrit, betaln, btdtr, btdtri
 from matplotlib.cbook import flatten
 
 # Keep import bilby statement, it is necessary for some eval() statements
@@ -1395,10 +1396,7 @@ class Uniform(Prior):
         -------
         float: log probability of val
         """
-        with np.errstate(divide='ignore'):
-            _ln_prob = np.log((val >= self.minimum) & (val <= self.maximum), dtype=np.float64)\
-                - np.log(self.maximum - self.minimum)
-        return _ln_prob
+        return xlogy(1, (val >= self.minimum) & (val <= self.maximum)) - xlogy(1, self.maximum - self.minimum)
 
     def cdf(self, val):
         _cdf = (val - self.minimum) / (self.maximum - self.minimum)
@@ -1840,7 +1838,7 @@ class LogNormal(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        return scipy.stats.lognorm.ppf(val, self.sigma, scale=np.exp(self.mu))
+        return np.exp(self.mu + np.sqrt(2 * self.sigma ** 2) * erfinv(2 * val - 1))
 
     def prob(self, val):
         """Returns the prior probability of val.
@@ -1853,8 +1851,18 @@ class LogNormal(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.lognorm.pdf(val, self.sigma, scale=np.exp(self.mu))
+        if isinstance(val, (float, int)):
+            if val <= self.minimum:
+                _prob = 0.
+            else:
+                _prob = np.exp(-(np.log(val) - self.mu) ** 2 / self.sigma ** 2 / 2)\
+                    / np.sqrt(2 * np.pi) / val / self.sigma
+        else:
+            _prob = np.zeros(len(val))
+            idx = (val > self.minimum)
+            _prob[idx] = np.exp(-(np.log(val[idx]) - self.mu) ** 2 / self.sigma ** 2 / 2)\
+                / np.sqrt(2 * np.pi) / val[idx] / self.sigma
+        return _prob
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
@@ -1867,11 +1875,30 @@ class LogNormal(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.lognorm.logpdf(val, self.sigma, scale=np.exp(self.mu))
+        if isinstance(val, (float, int)):
+            if val <= self.minimum:
+                _ln_prob = -np.inf
+            else:
+                _ln_prob = -(np.log(val) - self.mu) ** 2 / self.sigma ** 2 / 2\
+                    - np.log(np.sqrt(2 * np.pi) * val * self.sigma)
+        else:
+            _ln_prob = -np.inf * np.ones(len(val))
+            idx = (val > self.minimum)
+            _ln_prob[idx] = -(np.log(val[idx]) - self.mu) ** 2\
+                / self.sigma ** 2 / 2 - np.log(np.sqrt(2 * np.pi) * val[idx] * self.sigma)
+        return _ln_prob
 
     def cdf(self, val):
-        return scipy.stats.lognorm.cdf(val, self.sigma, scale=np.exp(self.mu))
+        if isinstance(val, (float, int)):
+            if val <= self.minimum:
+                _cdf = 0.
+            else:
+                _cdf = 0.5 + erf((np.log(val) - self.mu) / self.sigma / np.sqrt(2)) / 2
+        else:
+            _cdf = np.zeros(len(val))
+            _cdf[val > self.minimum] = 0.5 + erf((
+                np.log(val[val > self.minimum]) - self.mu) / self.sigma / np.sqrt(2)) / 2
+        return _cdf
 
 
 class LogGaussian(LogNormal):
@@ -1906,7 +1933,7 @@ class Exponential(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-        return scipy.stats.expon.ppf(val, scale=self.mu)
+        return -self.mu * log1p(-val)
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -1919,8 +1946,15 @@ class Exponential(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.expon.pdf(val, scale=self.mu)
+        if isinstance(val, (float, int)):
+            if val < self.minimum:
+                _prob = 0.
+            else:
+                _prob = np.exp(-val / self.mu) / self.mu
+        else:
+            _prob = np.zeros(len(val))
+            _prob[val >= self.minimum] = np.exp(-val[val >= self.minimum] / self.mu) / self.mu
+        return _prob
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
@@ -1933,11 +1967,26 @@ class Exponential(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.expon.logpdf(val, scale=self.mu)
+        if isinstance(val, (float, int)):
+            if val < self.minimum:
+                _ln_prob = -np.inf
+            else:
+                _ln_prob = -val / self.mu - np.log(self.mu)
+        else:
+            _ln_prob = -np.inf * np.ones(len(val))
+            _ln_prob[val >= self.minimum] = -val[val >= self.minimum] / self.mu - np.log(self.mu)
+        return _ln_prob
 
     def cdf(self, val):
-        return scipy.stats.expon.cdf(val, scale=self.mu)
+        if isinstance(val, (float, int)):
+            if val < self.minimum:
+                _cdf = 0.
+            else:
+                _cdf = 1. - np.exp(-val / self.mu)
+        else:
+            _cdf = np.zeros(len(val))
+            _cdf[val >= self.minimum] = 1. - np.exp(-val[val >= self.minimum] / self.mu)
+        return _cdf
 
 
 class StudentT(Prior):
@@ -1981,9 +2030,18 @@ class StudentT(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-
-        # use scipy distribution percentage point function (ppf)
-        return scipy.stats.t.ppf(val, self.df, loc=self.mu, scale=self.scale)
+        if isinstance(val, (float, int)):
+            if val == 0:
+                rescaled = -np.inf
+            elif val == 1:
+                rescaled = np.inf
+            else:
+                rescaled = stdtrit(self.df, val) * self.scale + self.mu
+        else:
+            rescaled = stdtrit(self.df, val) * self.scale + self.mu
+            rescaled[val == 0] = -np.inf
+            rescaled[val == 1] = np.inf
+        return rescaled
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -1996,7 +2054,7 @@ class StudentT(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-        return scipy.stats.t.pdf(val, self.df, loc=self.mu, scale=self.scale)
+        return np.exp(self.ln_prob(val))
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
@@ -2009,11 +2067,12 @@ class StudentT(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.t.logpdf(val, self.df, loc=self.mu, scale=self.scale)
+        return gammaln(0.5 * (self.df + 1)) - gammaln(0.5 * self.df)\
+            - np.log(np.sqrt(np.pi * self.df) * self.scale) - (self.df + 1) / 2 *\
+            np.log(1 + ((val - self.mu) / self.scale) ** 2 / self.df)
 
     def cdf(self, val):
-        return scipy.stats.t.cdf(val, self.df, loc=self.mu, scale=self.scale)
+        return stdtr(self.df, (val - self.mu) / self.scale)
 
 
 class Beta(Prior):
@@ -2045,16 +2104,14 @@ class Beta(Prior):
         boundary: str
             See superclass
         """
+        super(Beta, self).__init__(minimum=minimum, maximum=maximum, name=name,
+                                   latex_label=latex_label, unit=unit, boundary=boundary)
+
         if alpha <= 0. or beta <= 0.:
             raise ValueError("alpha and beta must both be positive values")
 
-        self._alpha = alpha
-        self._beta = beta
-        self._minimum = minimum
-        self._maximum = maximum
-        super(Beta, self).__init__(minimum=minimum, maximum=maximum, name=name,
-                                   latex_label=latex_label, unit=unit, boundary=boundary)
-        self._set_dist()
+        self.alpha = alpha
+        self.beta = beta
 
     def rescale(self, val):
         """
@@ -2063,9 +2120,7 @@ class Beta(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-
-        # use scipy distribution percentage point function (ppf)
-        return self._dist.ppf(val)
+        return btdtri(self.alpha, self.beta, val) * (self.maximum - self.minimum) + self.minimum
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -2078,18 +2133,7 @@ class Beta(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        spdf = self._dist.pdf(val)
-        if np.all(np.isfinite(spdf)):
-            return spdf
-
-        # deal with the fact that if alpha or beta are < 1 you get infinities at 0 and 1
-        if isinstance(val, np.ndarray):
-            pdf = np.zeros(len(val))
-            pdf[np.isfinite(spdf)] = spdf[np.isfinite]
-            return spdf
-        else:
-            return 0.
+        return np.exp(self.ln_prob(val))
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
@@ -2102,61 +2146,35 @@ class Beta(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
+        _ln_prob = xlogy(self.alpha - 1, val - self.minimum) + xlogy(self.beta - 1, self.maximum - val)\
+            - betaln(self.alpha, self.beta) - xlogy(self.alpha + self.beta - 1, self.maximum - self.minimum)
 
-        spdf = self._dist.logpdf(val)
-        if np.all(np.isfinite(spdf)):
-            return spdf
-
+        # deal with the fact that if alpha or beta are < 1 you get infinities at 0 and 1
         if isinstance(val, np.ndarray):
-            pdf = -np.inf * np.ones(len(val))
-            pdf[np.isfinite(spdf)] = spdf[np.isfinite]
-            return spdf
+            _ln_prob_sub = -np.inf * np.ones(len(val))
+            idx = np.isfinite(_ln_prob) & (val >= self.minimum) & (val <= self.maximum)
+            _ln_prob_sub[idx] = _ln_prob[idx]
+            return _ln_prob_sub
         else:
+            if np.isfinite(_ln_prob) and val >= self.minimum and val <= self.maximum:
+                return _ln_prob
             return -np.inf
 
     def cdf(self, val):
-        return self._dist.cdf(val)
-
-    def _set_dist(self):
-        self._dist = scipy.stats.beta(
-            a=self.alpha, b=self.beta, loc=self.minimum,
-            scale=(self.maximum - self.minimum))
-
-    @property
-    def maximum(self):
-        return self._maximum
-
-    @maximum.setter
-    def maximum(self, maximum):
-        self._maximum = maximum
-        self._set_dist()
-
-    @property
-    def minimum(self):
-        return self._minimum
-
-    @minimum.setter
-    def minimum(self, minimum):
-        self._minimum = minimum
-        self._set_dist()
-
-    @property
-    def alpha(self):
-        return self._alpha
-
-    @alpha.setter
-    def alpha(self, alpha):
-        self._alpha = alpha
-        self._set_dist()
-
-    @property
-    def beta(self):
-        return self._beta
-
-    @beta.setter
-    def beta(self, beta):
-        self._beta = beta
-        self._set_dist()
+        if isinstance(val, (float, int)):
+            if val > self.maximum:
+                return 1.
+            elif val < self.minimum:
+                return 0.
+            else:
+                return btdtr(self.alpha, self.beta,
+                             (val - self.minimum) / (self.maximum - self.minimum))
+        else:
+            _cdf = np.nan_to_num(btdtr(self.alpha, self.beta,
+                                 (val - self.minimum) / (self.maximum - self.minimum)))
+            _cdf[val < self.minimum] = 0.
+            _cdf[val > self.maximum] = 1.
+            return _cdf
 
 
 class Logistic(Prior):
@@ -2195,9 +2213,19 @@ class Logistic(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-
-        # use scipy distribution percentage point function (ppf)
-        return scipy.stats.logistic.ppf(val, loc=self.mu, scale=self.scale)
+        if isinstance(val, (float, int)):
+            if val == 0:
+                rescaled = -np.inf
+            elif val == 1:
+                rescaled = np.inf
+            else:
+                rescaled = self.mu + self.scale * np.log(val / (1. - val))
+        else:
+            rescaled = np.inf * np.ones(len(val))
+            rescaled[val == 0] = -np.inf
+            rescaled[(val > 0) & (val < 1)] = self.mu + self.scale\
+                * np.log(val[(val > 0) & (val < 1)] / (1. - val[(val > 0) & (val < 1)]))
+        return rescaled
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -2210,7 +2238,7 @@ class Logistic(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-        return scipy.stats.logistic.pdf(val, loc=self.mu, scale=self.scale)
+        return np.exp(self.ln_prob(val))
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
@@ -2223,11 +2251,11 @@ class Logistic(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.logistic.logpdf(val, loc=self.mu, scale=self.scale)
+        return -(val - self.mu) / self.scale -\
+            2. * np.log(1. + np.exp(-(val - self.mu) / self.scale)) - np.log(self.scale)
 
     def cdf(self, val):
-        return scipy.stats.logistic.cdf(val, loc=self.mu, scale=self.scale)
+        return 1. / (1. + np.exp(-(val - self.mu) / self.scale))
 
 
 class Cauchy(Prior):
@@ -2266,9 +2294,16 @@ class Cauchy(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-
-        # use scipy distribution percentage point function (ppf)
-        return scipy.stats.cauchy.ppf(val, loc=self.alpha, scale=self.beta)
+        rescaled = self.alpha + self.beta * np.tan(np.pi * (val - 0.5))
+        if isinstance(val, (float, int)):
+            if val == 1:
+                rescaled = np.inf
+            elif val == 0:
+                rescaled = -np.inf
+        else:
+            rescaled[val == 1] = np.inf
+            rescaled[val == 0] = -np.inf
+        return rescaled
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -2281,7 +2316,7 @@ class Cauchy(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-        return scipy.stats.cauchy.pdf(val, loc=self.alpha, scale=self.beta)
+        return 1. / self.beta / np.pi / (1. + ((val - self.alpha) / self.beta) ** 2)
 
     def ln_prob(self, val):
         """Return the log prior probability of val.
@@ -2294,10 +2329,10 @@ class Cauchy(Prior):
         -------
         Union[float, array_like]: Log prior probability of val
         """
-        return scipy.stats.cauchy.logpdf(val, loc=self.alpha, scale=self.beta)
+        return - np.log(self.beta * np.pi) - np.log(1. + ((val - self.alpha) / self.beta) ** 2)
 
     def cdf(self, val):
-        return scipy.stats.cauchy.cdf(val, loc=self.alpha, scale=self.beta)
+        return 0.5 + np.arctan((val - self.alpha) / self.beta) / np.pi
 
 
 class Lorentzian(Cauchy):
@@ -2341,9 +2376,7 @@ class Gamma(Prior):
         This maps to the inverse CDF. This has been analytically solved for this case.
         """
         self.test_valid_for_rescaling(val)
-
-        # use scipy distribution percentage point function (ppf)
-        return scipy.stats.gamma.ppf(val, self.k, loc=0., scale=self.theta)
+        return gammaincinv(self.k, val) * self.theta
 
     def prob(self, val):
         """Return the prior probability of val.
@@ -2356,8 +2389,7 @@ class Gamma(Prior):
         -------
          Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.gamma.pdf(val, self.k, loc=0., scale=self.theta)
+        return np.exp(self.ln_prob(val))
 
     def ln_prob(self, val):
         """Returns the log prior probability of val.
@@ -2370,11 +2402,28 @@ class Gamma(Prior):
         -------
         Union[float, array_like]: Prior probability of val
         """
-
-        return scipy.stats.gamma.logpdf(val, self.k, loc=0., scale=self.theta)
+        if isinstance(val, (float, int)):
+            if val < self.minimum:
+                _ln_prob = -np.inf
+            else:
+                _ln_prob = xlogy(self.k - 1, val) - val / self.theta - xlogy(self.k, self.theta) - gammaln(self.k)
+        else:
+            _ln_prob = -np.inf * np.ones(len(val))
+            idx = (val >= self.minimum)
+            _ln_prob[idx] = xlogy(self.k - 1, val[idx]) - val[idx] / self.theta\
+                - xlogy(self.k, self.theta) - gammaln(self.k)
+        return _ln_prob
 
     def cdf(self, val):
-        return scipy.stats.gamma.cdf(val, self.k, loc=0., scale=self.theta)
+        if isinstance(val, (float, int)):
+            if val < self.minimum:
+                _cdf = 0.
+            else:
+                _cdf = gammainc(self.k, val / self.theta)
+        else:
+            _cdf = np.zeros(len(val))
+            _cdf[val >= self.minimum] = gammainc(self.k, val[val >= self.minimum] / self.theta)
+        return _cdf
 
 
 class ChiSquared(Gamma):
