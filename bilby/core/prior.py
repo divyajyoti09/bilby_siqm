@@ -332,11 +332,10 @@ class PriorDict(OrderedDict):
         self.convert_floats_to_delta_functions()
         samples = dict()
         for key in keys:
-            if isinstance(self[key], Prior):
-                if isinstance(self[key], Constraint):
-                    continue
-                else:
-                    samples[key] = self[key].sample(size=size)
+            if isinstance(self[key], Constraint):
+                continue
+            elif isinstance(self[key], Prior):
+                samples[key] = self[key].sample(size=size)
             else:
                 logger.debug('{} not a known prior.'.format(key))
         return samples
@@ -544,18 +543,25 @@ class ConditionalPriorDict(PriorDict):
         self.convert_floats_to_delta_functions()
         subset_dict = ConditionalPriorDict({key: self[key] for key in keys})
         if not subset_dict._resolved:
-            raise IllegalConditionsException("The current set of priors contains unresolveable conditions.")
-        res = dict()
+            raise IllegalConditionsException("The current set of priors contains unresolvable conditions.")
+        samples = dict()
         for key in subset_dict.sorted_keys:
-            if isinstance(self[key], Prior):
-                if isinstance(self[key], Constraint):
-                    continue
-                else:
-                    res[key] = self[key].sample(
-                        size=size, **subset_dict.get_required_variables(key))
+            if isinstance(self[key], Constraint):
+                continue
+            elif isinstance(self[key], Prior):
+                try:
+                    samples[key] = subset_dict[key].sample(size=size, **subset_dict.get_required_variables(key))
+                except ValueError:
+                    # Some prior classes can not handle an array of conditional parameters (e.g. alpha for PowerLaw)
+                    # If that is the case, we sample each sample individually.
+                    required_variables = subset_dict.get_required_variables(key)
+                    samples[key] = np.zeros(size)
+                    for i in range(size):
+                        rvars = {key: value[i] for key, value in required_variables.items()}
+                        samples[key][i] = subset_dict[key].sample(**rvars)
             else:
                 logger.debug('{} not a known prior.'.format(key))
-        return res
+        return samples
 
     def get_required_variables(self, key):
         """ Returns the required variables to sample a given conditional key.
@@ -633,7 +639,7 @@ class ConditionalPriorDict(PriorDict):
         for key, index in zip(self._rescale_keys, self._rescale_indexes):
             required_variables = {k: result[k] for k in getattr(self[key], 'required_variables', [])}
             result[key] = self[key].rescale(theta[index], **required_variables)
-        return list(result.values())
+        return [result[key] for key in keys]
 
     def _update_rescale_keys(self, keys):
         if not keys == self._least_recently_rescaled_keys:
@@ -3570,7 +3576,8 @@ def conditional_prior_factory(prior_class):
             return super(ConditionalPrior, self).prob(val)
 
         def ln_prob(self, val, **required_variables):
-            return np.log(self.prob(val, **required_variables))
+            self.update_conditions(**required_variables)
+            return super(ConditionalPrior, self).ln_prob(val)
 
         def update_conditions(self, **required_variables):
             """
