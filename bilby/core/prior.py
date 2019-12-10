@@ -2574,6 +2574,7 @@ class Interped(Prior):
     @yy.setter
     def yy(self, yy):
         self._yy = yy
+        self.__all_interpolated = interp1d(x=self.xx, y=self._yy, bounds_error=False, fill_value=0)
         self._update_instance()
 
     @minimum.setter
