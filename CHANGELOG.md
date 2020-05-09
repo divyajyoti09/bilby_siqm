@@ -1,5 +1,71 @@
 # All notable changes will be documented in this file
 
+## [0.6.7] 2020-04-15
+### Changes
+- Allow dynesty to run with multiprocessing (!754)
+- Rewrite ptemcee implementation (!750)
+- Change 'source frame' to 'detector frame' in L34-35 of compare_samplers tutorial (!745)
+- Allow lal dictionary to be passed through to '_base_lal_cbc_fd_waveform' (!752)
+
+## [0.6.6] 2020-03-06
+### Changes
+- Fix bug where injected values are not present for corner plot (!749)
+- Significant backwards-incompatible improvements to `dynesty` checkpointing (!746)
+- Improve checkpoint interval calculation with `dynesty` (!741)
+- Fix reading of `PriorDict` class from result file (!739)
+- Fix definition of time for time-domain `lalsimulation` waveforms (!736)
+- LaTeX text formatting for plots by default (!702)
+
+### Added
+- Normalisation dynamically computed when using prior constraints (!704)
+
+## [0.6.5] 2020-02-14
+### Changes
+- Fix for time reconstruction bug (!714)
+- Resolved errors Waveform longer than the frequency array (!710)
+- Prior reading clean-up (!715)
+- More efficient dynesty restarting (!713)
+- PP tests show 123 sigma bounds by default (!726)
+
+### Added
+- HealPixPrior (!651)
+- GW prior documentation (!720)
+- Multiple contours to PP tests plots (!721) 
+- Distance marginalization for non-luminosity-distance parameters (!719)
+
+### Removed
+- Pipenv (!724)
+
+
+## [0.6.4] 2020-01-30
+### Changes
+- Discontinue python2.7 support (!697)
+- Minor adjustments to the act calculation method (!679, !707)
+- Restructure of the prior module (!688)
+- Improvements to the documentation (!708, !700)
+- Bug fix when maximum < minimum (!696)
+
+### Added
+- Improved waveform error handling (!653)
+- Waveform check to the CI (!698)
+
+## [0.6.3] 2020-01-03
+### Changed
+- Fixed an issue with the ROQ segment scaling (!690)
+
+## [0.6.2] 2019-12-20
+### Added
+- Introduced conditional prior sets (!332)(!673)(!674)
+- Introduced joint priors (!668)
+- Added a check to make sure sampling time exists before trying to update (!672)
+### Changed
+- Fixed a caching issue with the waveform generators (!630)
+- Fixed an issue that made the dynamic dynesty sampler not work (!667)
+- Changed the backend docker files (!669)
+- Fixed an error when plotting time domain data when using `filtfilt=True`
+- `Interped` priors now dynamically update when new `yy` values are set (!675)
+- Fixed the ROQ scaling checks (!678)
+
 ## [0.6.1] 2019-12-02
 
 HotFix release following 0.6.0 fixing a minor bug in the generation of derived

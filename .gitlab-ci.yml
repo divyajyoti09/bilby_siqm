@@ -24,6 +24,7 @@ stages:
     - python -m pip install .
     - python -c "import bilby"
     - python -c "import bilby.core"
+    - python -c "import bilby.core.prior"
     - python -c "import bilby.core.sampler"
     - python -c "import bilby.gw"
     - python -c "import bilby.gw.detector"
@@ -33,11 +34,6 @@ stages:
     - for script in $(pip show -f bilby | grep "bin\/" | xargs -I {} basename {}); do
           ${script} --help;
       done
-
-# test basic setup on python2
-basic-2.7:
-  <<: *test-python
-  image: python:2.7
 
 # test basic setup on python3
 basic-3.7:
@@ -55,7 +51,7 @@ python-3.7:
     - flake8 .
 
     # Run tests and collect coverage data
-    - pytest --cov=bilby
+    - pytest --cov=bilby --durations 10
     - coverage html
     - coverage-badge -o coverage_badge.svg -f
 
@@ -70,6 +66,15 @@ python-3.7:
       - coverage_badge.svg
       - docs/_build/html/
 
+# test example on python 3.8
+python-3.8:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python38
+  script:
+    - python -m pip install .
+
+    - pytest
+
 # test example on python 3.6
 python-3.6:
   stage: test
@@ -79,10 +84,29 @@ python-3.6:
 
     - pytest
 
+# test samplers on python 3.7
+python-3.7-samplers:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python37
+  script:
+    - python -m pip install .
+
+    - pytest test/sampler_test.py --durations 10
+    - pytest test/sample_from_the_prior_test.py
+
+# test samplers on python 3.6
+python-3.6-samplers:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python36
+  script:
+    - python -m pip install .
+
+    - pytest test/sampler_test.py
+
 # Tests run at a fixed schedule rather than on push
 scheduled-python-3.7:
   stage: test
-  image: bilbydev/bilby-test-suite-python37
+  image: bilbydev/v2-dockerfile-test-suite-python37
   only:
     - schedules
   script:
@@ -92,6 +116,17 @@ scheduled-python-3.7:
     - pytest test/example_test.py
     - pytest test/gw_example_test.py
     - pytest test/sample_from_the_prior_test.py
+
+plotting:
+  stage: test
+  image: bilbydev/bilby-test-suite-python37
+  only:
+    - schedules
+  script:
+    - python -m pip install .
+    - python -m pip install ligo.skymap
+
+    - pytest test/gw_plot_test.py
 
 pages:
   stage: deploy
@@ -108,3 +143,32 @@ pages:
     expire_in: 30 days
   only:
     - master
+
+deploy_release:
+  stage: deploy
+  image: bilbydev/v2-dockerfile-test-suite-python37
+  variables:
+    TWINE_USERNAME: $PYPI_USERNAME
+    TWINE_PASSWORD: $PYPI_PASSWORD
+  before_script:
+    - pip install twine
+    - python setup.py sdist
+  script:
+    - twine upload dist/*
+  only:
+  - tags
+
+
+precommits-py3.7:
+  stage: test
+  image: bilbydev/v2-dockerfile-test-suite-python37
+  script:
+    - source activate python37
+    - mkdir -p .pip37
+    - pip install --upgrade pip
+    - pip --cache-dir=.pip37 install --upgrade bilby
+    - pip --cache-dir=.pip37 install .
+    - pip --cache-dir=.pip37 install pre-commit
+
+    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
+    - pre-commit run --all-files --verbose --show-diff-on-failure

@@ -17,10 +17,14 @@ import scipy.stats
 from scipy.special import logsumexp
 
 from . import utils
-from .utils import (logger, infer_parameters_from_function,
-                    check_directory_exists_and_if_not_mkdir,)
-from .utils import BilbyJsonEncoder, decode_bilby_json
-from .prior import Prior, PriorDict, DeltaFunction, ConditionalPriorDict
+from .utils import (
+    logger, infer_parameters_from_function,
+    check_directory_exists_and_if_not_mkdir,
+    latex_plot_format, safe_save_figure,
+    BilbyJsonEncoder, load_json,
+    move_old_file, get_version_information
+)
+from .prior import Prior, PriorDict, DeltaFunction
 
 
 def result_file_name(outdir, label, extension='json', gzip=False):
@@ -256,14 +260,7 @@ class Result(object):
         filename = _determine_file_name(filename, outdir, label, 'json', gzip)
 
         if os.path.isfile(filename):
-            if gzip or os.path.splitext(filename)[1].lstrip('.') == 'gz':
-                import gzip
-                with gzip.GzipFile(filename, 'r') as file:
-                    json_str = file.read().decode('utf-8')
-                dictionary = json.loads(json_str, object_hook=decode_bilby_json)
-            else:
-                with open(filename, 'r') as file:
-                    dictionary = json.load(file, object_hook=decode_bilby_json)
+            dictionary = load_json(filename, gzip)
             try:
                 return cls(**dictionary)
             except TypeError as e:
@@ -276,15 +273,15 @@ class Result(object):
         if getattr(self, 'posterior', None) is not None:
             if getattr(self, 'log_noise_evidence', None) is not None:
                 return ("nsamples: {:d}\n"
-                        "log_noise_evidence: {:6.3f}\n"
-                        "log_evidence: {:6.3f} +/- {:6.3f}\n"
-                        "log_bayes_factor: {:6.3f} +/- {:6.3f}\n"
+                        "ln_noise_evidence: {:6.3f}\n"
+                        "ln_evidence: {:6.3f} +/- {:6.3f}\n"
+                        "ln_bayes_factor: {:6.3f} +/- {:6.3f}\n"
                         .format(len(self.posterior), self.log_noise_evidence, self.log_evidence,
                                 self.log_evidence_err, self.log_bayes_factor,
                                 self.log_evidence_err))
             else:
                 return ("nsamples: {:d}\n"
-                        "log_evidence: {:6.3f} +/- {:6.3f}\n"
+                        "ln_evidence: {:6.3f} +/- {:6.3f}\n"
                         .format(len(self.posterior), self.log_evidence, self.log_evidence_err))
         else:
             return ''
@@ -299,7 +296,7 @@ class Result(object):
     @priors.setter
     def priors(self, priors):
         if isinstance(priors, dict):
-            if isinstance(priors, ConditionalPriorDict):
+            if isinstance(priors, PriorDict):
                 self._priors = priors
             else:
                 self._priors = PriorDict(priors)
@@ -390,6 +387,22 @@ class Result(object):
         self._posterior = posterior
 
     @property
+    def log_10_bayes_factor(self):
+        return self.log_bayes_factor / np.log(10)
+
+    @property
+    def log_10_evidence(self):
+        return self.log_evidence / np.log(10)
+
+    @property
+    def log_10_evidence_err(self):
+        return self.log_evidence_err / np.log(10)
+
+    @property
+    def log_10_noise_evidence(self):
+        return self.log_noise_evidence / np.log(10)
+
+    @property
     def version(self):
         return self._version
 
@@ -449,17 +462,7 @@ class Result(object):
         if filename is None:
             filename = result_file_name(outdir, self.label, extension, gzip)
 
-        if os.path.isfile(filename):
-            if overwrite:
-                logger.debug('Removing existing file {}'.format(filename))
-                os.remove(filename)
-            else:
-                logger.debug(
-                    'Renaming existing file {} to {}.old'.format(filename,
-                                                                 filename))
-                os.rename(filename, filename + '.old')
-
-        logger.debug("Saving result to {}".format(filename))
+        move_old_file(filename, overwrite)
 
         # Convert the prior to a string representation for saving on disk
         dictionary = self._get_save_data_dictionary()
@@ -639,6 +642,7 @@ class Result(object):
             fmt(summary.median), fmt(summary.minus), fmt(summary.plus))
         return summary
 
+    @latex_plot_format
     def plot_single_density(self, key, prior=None, cumulative=False,
                             title=None, truth=None, save=True,
                             file_base_name=None, bins=50, label_fontsize=16,
@@ -718,7 +722,7 @@ class Result(object):
                 file_name = file_base_name + key + '_cdf'
             else:
                 file_name = file_base_name + key + '_pdf'
-            fig.savefig(file_name, dpi=dpi)
+            safe_save_figure(fig=fig, filename=file_name, dpi=dpi)
             plt.close(fig)
         else:
             return fig
@@ -803,6 +807,7 @@ class Result(object):
                     bins=bins, label_fontsize=label_fontsize, dpi=dpi,
                     title_fontsize=title_fontsize, quantiles=quantiles)
 
+    @latex_plot_format
     def plot_corner(self, parameters=None, priors=None, titles=True, save=True,
                     filename=None, dpi=300, **kwargs):
         """ Plot a corner-plot
@@ -902,8 +907,10 @@ class Result(object):
         cond2 = parameters is None
         cond3 = bool(kwargs.get("truths", True))
         if cond1 and cond2 and cond3:
-            parameters = {key: self.injection_parameters[key] for key in
-                          self.search_parameter_keys}
+            parameters = {
+                key: self.injection_parameters.get(key, np.nan)
+                for key in self.search_parameter_keys
+            }
 
         # If parameters is a dictionary, use the keys to determine which
         # parameters to plot and the values as truths.
@@ -919,6 +926,8 @@ class Result(object):
         kwargs['labels'] = kwargs.get(
             'labels', self.get_latex_labels_from_parameter_keys(
                 plot_parameter_keys))
+
+        kwargs["labels"] = sanity_check_labels(kwargs["labels"])
 
         # Unless already set, set the range to include all samples
         # This prevents ValueErrors being raised for parameters with no range
@@ -960,11 +969,12 @@ class Result(object):
                 outdir = self._safe_outdir_creation(kwargs.get('outdir'), self.plot_corner)
                 filename = '{}/{}_corner.png'.format(outdir, self.label)
             logger.debug('Saving corner plot to {}'.format(filename))
-            fig.savefig(filename, dpi=dpi)
+            safe_save_figure(fig=fig, filename=filename, dpi=dpi)
             plt.close(fig)
 
         return fig
 
+    @latex_plot_format
     def plot_walkers(self, **kwargs):
         """ Method to plot the trace of the walkers in an ensemble MCMC plot """
         if hasattr(self, 'walkers') is False:
@@ -992,9 +1002,10 @@ class Result(object):
         outdir = self._safe_outdir_creation(kwargs.get('outdir'), self.plot_walkers)
         filename = '{}/{}_walkers.png'.format(outdir, self.label)
         logger.debug('Saving walkers plot to {}'.format('filename'))
-        fig.savefig(filename)
+        safe_save_figure(fig=fig, filename=filename)
         plt.close(fig)
 
+    @latex_plot_format
     def plot_with_data(self, model, x, y, ndraws=1000, npoints=1000,
                        xlabel=None, ylabel=None, data_label='data',
                        data_fmt='o', draws_label=None, filename=None,
@@ -1066,7 +1077,7 @@ class Result(object):
         if filename is None:
             outdir = self._safe_outdir_creation(outdir, self.plot_with_data)
             filename = '{}/{}_plot_with_data'.format(outdir, self.label)
-        fig.savefig(filename, dpi=dpi)
+        safe_save_figure(fig=fig, filename=filename, dpi=dpi)
         plt.close(fig)
 
     @staticmethod
@@ -1229,7 +1240,7 @@ class Result(object):
             return self._kde
 
     def posterior_probability(self, sample):
-        """ Calculate the posterior probabily for a new sample
+        """ Calculate the posterior probability for a new sample
 
         This queries a Kernel Density Estimate of the posterior to calculate
         the posterior probability density for the new sample.
@@ -1306,6 +1317,75 @@ class Result(object):
             weights.append(weight)
 
         return weights
+
+    def to_arviz(self, prior=None):
+        """ Convert the Result object to an ArviZ InferenceData object.
+
+            Parameters
+            ----------
+            prior: int
+                If a positive integer is given then that number of prior
+                samples will be drawn and stored in the ArviZ InferenceData
+                object.
+
+            Returns
+            -------
+            azdata: InferenceData
+                The ArviZ InferenceData object.
+        """
+
+        try:
+            import arviz as az
+        except ImportError:
+            logger.debug(
+                "ArviZ is not installed, so cannot convert to InferenceData"
+            )
+
+        posdict = {}
+        for key in self.posterior:
+            posdict[key] = self.posterior[key].values
+
+        if "log_likelihood" in posdict:
+            loglikedict = {
+                "log_likelihood": posdict.pop("log_likelihood")
+            }
+        else:
+            if self.log_likelihood_evaluations is not None:
+                loglikedict = {
+                    "log_likelihood": self.log_likelihood_evaluations
+                }
+            else:
+                loglikedict = None
+
+        priorsamples = None
+        if prior is not None:
+            if self.priors is None:
+                logger.warning(
+                    "No priors are in the Result object, so prior samples "
+                    "will not be included in the output."
+                )
+            else:
+                priorsamples = self.priors.sample(size=prior)
+
+        azdata = az.from_dict(
+            posterior=posdict,
+            log_likelihood=loglikedict,
+            prior=priorsamples,
+        )
+
+        # add attributes
+        version = {
+            "inference_library": "bilby: {}".format(self.sampler),
+            "inference_library_version": get_version_information()
+        }
+
+        azdata.posterior.attrs.update(version)
+        if "log_likelihood" in azdata._groups:
+            azdata.log_likelihood.attrs.update(version)
+        if "prior" in azdata._groups:
+            azdata.prior.attrs.update(version)
+
+        return azdata
 
 
 class ResultList(list):
@@ -1443,8 +1523,9 @@ class ResultList(list):
             raise ResultListError("Inconsistent samplers between results")
 
 
+@latex_plot_format
 def plot_multiple(results, filename=None, labels=None, colours=None,
-                  save=True, evidences=False, **kwargs):
+                  save=True, evidences=False, corner_labels=None, **kwargs):
     """ Generate a corner plot overlaying two sets of results
 
     Parameters
@@ -1464,12 +1545,16 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
     save: bool
         If true, save the figure
     kwargs: dict
-        All other keyword arguments are passed to `result.plot_corner`.
+        All other keyword arguments are passed to `result.plot_corner` (except
+        for the keyword `labels` for which you should use the dedicated
+        `corner_labels` input).
         However, `show_titles` and `truths` are ignored since they would be
         ambiguous on such a plot.
     evidences: bool, optional
         Add the log-evidence calculations to the legend. If available, the
         Bayes factor will be used instead.
+    corner_labels: list, optional
+        List of strings to be passed to the input `labels` to `result.plot_corner`.
 
     Returns
     -------
@@ -1480,6 +1565,8 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
 
     kwargs['show_titles'] = False
     kwargs['truths'] = None
+    if corner_labels is not None:
+        kwargs['labels'] = corner_labels
 
     fig = results[0].plot_corner(save=False, **kwargs)
     default_filename = '{}/{}'.format(results[0].outdir, 'combined')
@@ -1505,6 +1592,8 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
     if labels is None:
         labels = default_labels
 
+    labels = sanity_check_labels(labels)
+
     if evidences:
         if np.isnan(results[0].log_bayes_factor):
             template = ' $\mathrm{{ln}}(Z)={lnz:1.3g}$'
@@ -1522,12 +1611,14 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
         filename = default_filename
 
     if save:
-        fig.savefig(filename)
+        safe_save_figure(fig=fig, filename=filename)
     return fig
 
 
-def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
+@latex_plot_format
+def make_pp_plot(results, filename=None, save=True, confidence_interval=[0.68, 0.95, 0.997],
                  lines=None, legend_fontsize='x-small', keys=None, title=True,
+                 confidence_interval_alpha=0.1,
                  **kwargs):
     """
     Make a P-P plot for a set of runs with injected signals.
@@ -1540,8 +1631,8 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
         The name of the file to save, the default is "outdir/pp.png"
     save: bool, optional
         Whether to save the file, default=True
-    confidence_interval: float, optional
-        The confidence interval to be plotted, defaulting to 0.9 (90%)
+    confidence_interval: (float, list), optional
+        The confidence interval to be plotted, defaulting to 1-2-3 sigma
     lines: list
         If given, a list of matplotlib line formats to use, must be greater
         than the number of parameters.
@@ -1549,6 +1640,8 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
         The font size for the legend
     keys: list
         A list of keys to use, if None defaults to search_parameter_keys
+    confidence_interval_alpha: float, list, optional
+        The transparency for the background condifence interval
     kwargs:
         Additional kwargs to pass to matplotlib.pyplot.plot
 
@@ -1576,18 +1669,26 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
 
     x_values = np.linspace(0, 1, 1001)
 
-    # Putting in the confidence bands
     N = len(credible_levels)
-    edge_of_bound = (1. - confidence_interval) / 2.
-    lower = scipy.stats.binom.ppf(1 - edge_of_bound, N, x_values) / N
-    upper = scipy.stats.binom.ppf(edge_of_bound, N, x_values) / N
-    # The binomial point percent function doesn't always return 0 @ 0,
-    # so set those bounds explicitly to be sure
-    lower[0] = 0
-    upper[0] = 0
     fig, ax = plt.subplots()
 
-    ax.fill_between(x_values, lower, upper, alpha=0.2, color='k')
+    if isinstance(confidence_interval, float):
+        confidence_interval = [confidence_interval]
+    if isinstance(confidence_interval_alpha, float):
+        confidence_interval_alpha = [confidence_interval_alpha] * len(confidence_interval)
+    elif len(confidence_interval_alpha) != len(confidence_interval):
+        raise ValueError(
+            "confidence_interval_alpha must have the same length as confidence_interval")
+
+    for ci, alpha in zip(confidence_interval, confidence_interval_alpha):
+        edge_of_bound = (1. - ci) / 2.
+        lower = scipy.stats.binom.ppf(1 - edge_of_bound, N, x_values) / N
+        upper = scipy.stats.binom.ppf(edge_of_bound, N, x_values) / N
+        # The binomial point percent function doesn't always return 0 @ 0,
+        # so set those bounds explicitly to be sure
+        lower[0] = 0
+        upper[0] = 0
+        ax.fill_between(x_values, lower, upper, alpha=alpha, color='k')
 
     pvalues = []
     logger.info("Key: KS-test p-value")
@@ -1617,16 +1718,24 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=0.9,
             len(results), pvals.combined_pvalue))
     ax.set_xlabel("C.I.")
     ax.set_ylabel("Fraction of events in C.I.")
-    ax.legend(linewidth=1, labelspacing=0.25, fontsize=legend_fontsize)
+    ax.legend(linewidth=1, handlelength=2, labelspacing=0.25, fontsize=legend_fontsize)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     fig.tight_layout()
     if save:
         if filename is None:
             filename = 'outdir/pp.png'
-        fig.savefig(filename, dpi=500)
+        safe_save_figure(fig=fig, filename=filename, dpi=500)
 
     return fig, pvals
+
+
+def sanity_check_labels(labels):
+    """ Check labels for plotting to remove matplotlib errors """
+    for ii, lab in enumerate(labels):
+        if "_" in lab and "$" not in lab:
+            labels[ii] = lab.replace("_", "-")
+    return labels
 
 
 class ResultError(Exception):

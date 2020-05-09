@@ -15,15 +15,15 @@ from ..core.utils import (ra_dec_to_theta_phi,
 try:
     from gwpy.timeseries import TimeSeries
 except ImportError:
-    logger.warning("You do not have gwpy installed currently. You will "
-                   " not be able to use some of the prebuilt functions.")
+    logger.debug("You do not have gwpy installed currently. You will "
+                 " not be able to use some of the prebuilt functions.")
 
 try:
     import lal
     import lalsimulation as lalsim
 except ImportError:
-    logger.warning("You do not have lalsuite installed currently. You will"
-                   " not be able to use some of the prebuilt functions.")
+    logger.debug("You do not have lalsuite installed currently. You will"
+                 " not be able to use some of the prebuilt functions.")
 
 
 def asd_from_freq_series(freq_data, df):
@@ -717,28 +717,15 @@ def lalsim_SimInspiralFD(
     approximant: int, str
     """
 
-    [mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z,
-     luminosity_distance, iota, phase, longitude_ascending_nodes,
-     eccentricity, mean_per_ano, delta_frequency, minimum_frequency,
-     maximum_frequency, reference_frequency] = convert_args_list_to_float(
+    args = convert_args_list_to_float(
         mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z,
         luminosity_distance, iota, phase, longitude_ascending_nodes,
         eccentricity, mean_per_ano, delta_frequency, minimum_frequency,
         maximum_frequency, reference_frequency)
 
-    if isinstance(approximant, int):
-        pass
-    elif isinstance(approximant, str):
-        approximant = lalsim_GetApproximantFromString(approximant)
-    else:
-        raise ValueError("approximant not an int")
+    approximant = _get_lalsim_approximant(approximant)
 
-    return lalsim.SimInspiralFD(
-        mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
-        spin_2z, luminosity_distance, iota, phase,
-        longitude_ascending_nodes, eccentricity, mean_per_ano, delta_frequency,
-        minimum_frequency, maximum_frequency, reference_frequency,
-        waveform_dictionary, approximant)
+    return lalsim.SimInspiralFD(*args, waveform_dictionary, approximant)
 
 
 def lalsim_SimInspiralChooseFDWaveform(
@@ -774,28 +761,25 @@ def lalsim_SimInspiralChooseFDWaveform(
     approximant: int, str
     """
 
-    [mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z,
-     luminosity_distance, iota, phase, longitude_ascending_nodes,
-     eccentricity, mean_per_ano, delta_frequency, minimum_frequency,
-     maximum_frequency, reference_frequency] = convert_args_list_to_float(
+    args = convert_args_list_to_float(
         mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z,
         luminosity_distance, iota, phase, longitude_ascending_nodes,
         eccentricity, mean_per_ano, delta_frequency, minimum_frequency,
         maximum_frequency, reference_frequency)
 
+    approximant = _get_lalsim_approximant(approximant)
+
+    return lalsim.SimInspiralChooseFDWaveform(*args, waveform_dictionary, approximant)
+
+
+def _get_lalsim_approximant(approximant):
     if isinstance(approximant, int):
         pass
     elif isinstance(approximant, str):
         approximant = lalsim_GetApproximantFromString(approximant)
     else:
         raise ValueError("approximant not an int")
-
-    return lalsim.SimInspiralChooseFDWaveform(
-        mass_1, mass_2, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y,
-        spin_2z, luminosity_distance, iota, phase,
-        longitude_ascending_nodes, eccentricity, mean_per_ano, delta_frequency,
-        minimum_frequency, maximum_frequency, reference_frequency,
-        waveform_dictionary, approximant)
+    return approximant
 
 
 def lalsim_SimInspiralChooseFDWaveformSequence(

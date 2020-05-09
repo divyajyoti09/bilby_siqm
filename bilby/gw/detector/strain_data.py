@@ -11,14 +11,14 @@ try:
     import gwpy
     import gwpy.signal
 except ImportError:
-    logger.warning("You do not have gwpy installed currently. You will "
-                   " not be able to use some of the prebuilt functions.")
+    logger.debug("You do not have gwpy installed currently. You will "
+                 " not be able to use some of the prebuilt functions.")
 
 try:
     import lal
 except ImportError:
-    logger.warning("You do not have lalsuite installed currently. You will"
-                   " not be able to use some of the prebuilt functions.")
+    logger.debug("You do not have lalsuite installed currently. You will"
+                 " not be able to use some of the prebuilt functions.")
 
 
 class InterferometerStrainData(object):
@@ -216,6 +216,7 @@ class InterferometerStrainData(object):
         if not len(self.frequency_array) == len(frequency_domain_strain):
             raise ValueError("The frequency_array and the set strain have different lengths")
         self._frequency_domain_strain = frequency_domain_strain
+        self._time_domain_strain = None
 
     def to_gwpy_timeseries(self):
         """

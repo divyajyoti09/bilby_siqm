@@ -38,7 +38,7 @@ class Cpnest(NestedSampler):
         {self.outdir}/cpnest_{self.label}/
 
     """
-    default_kwargs = dict(verbose=1, nthreads=1, nlive=500, maxmcmc=1000,
+    default_kwargs = dict(verbose=3, nthreads=1, nlive=500, maxmcmc=1000,
                           seed=None, poolsize=100, nhamiltonian=0, resume=True,
                           output=None, proposals=None, n_periodic_checkpoint=8000)
 
@@ -105,7 +105,12 @@ class Cpnest(NestedSampler):
                 logger.info(
                     "Attempting to rerun with kwarg {} removed".format(kwarg))
                 self.kwargs.pop(kwarg)
-        out.run()
+        try:
+            out.run()
+        except SystemExit as e:
+            import sys
+            logger.info(f"Caught exit code {e.args[0]}, exiting with signal {self.exit_code}")
+            sys.exit(self.exit_code)
 
         if self.plot:
             out.plot()

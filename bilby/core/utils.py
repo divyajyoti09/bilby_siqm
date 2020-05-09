@@ -1,11 +1,13 @@
 from __future__ import division
 
+from distutils.spawn import find_executable
 import logging
 import os
 from math import fmod
 import argparse
 import traceback
 import inspect
+import functools
 import types
 import subprocess
 import multiprocessing
@@ -13,6 +15,7 @@ from importlib import import_module
 import json
 import warnings
 
+from distutils.version import StrictVersion
 import numpy as np
 from scipy.interpolate import interp2d
 from scipy.special import logsumexp
@@ -20,10 +23,10 @@ import pandas as pd
 
 logger = logging.getLogger('bilby')
 
-# Constants: values taken from LAL cd65f38ce43cef3a1dec217c060de25caf99bf14
+# Constants: values taken from LAL 505df9dd2e69b4812f1e8eee3a6d468ba7f80674
 speed_of_light = 299792458.0  # m/s
 parsec = 3.085677581491367e+16  # m
-solar_mass = 1.9885469549614615e+30  # Kg
+solar_mass = 1.9884099021470415e+30  # Kg
 radius_of_earth = 6378136.6  # m
 
 _TOL = 14
@@ -127,6 +130,15 @@ def infer_args_from_function_except_n_args(func, n=1):
 
 def _infer_args_from_function_except_for_first_arg(func):
     return infer_args_from_function_except_n_args(func=func, n=1)
+
+
+def get_dict_with_properties(obj):
+    property_names = [p for p in dir(obj.__class__)
+                      if isinstance(getattr(obj.__class__, p), property)]
+    dict_with_properties = obj.__dict__.copy()
+    for key in property_names:
+        dict_with_properties[key] = getattr(obj, key)
+    return dict_with_properties
 
 
 def get_sampling_frequency(time_array):
@@ -963,7 +975,10 @@ else:
     for backend in non_gui_backends:
         try:
             logger.debug("Trying backend {}".format(backend))
-            matplotlib.use(backend, warn=False)
+            if StrictVersion(matplotlib.__version__) >= StrictVersion("3.1"):
+                matplotlib.use(backend)
+            else:
+                matplotlib.use(backend, warn=False)
             plt.switch_backend(backend)
             break
         except Exception:
@@ -974,9 +989,10 @@ class BilbyJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
         from .prior import MultivariateGaussianDist, Prior, PriorDict
+        from ..gw.prior import HealPixMapPriorDist
         if isinstance(obj, PriorDict):
             return {'__prior_dict__': True, 'content': obj._get_json_dict()}
-        if isinstance(obj, (MultivariateGaussianDist, Prior)):
+        if isinstance(obj, (MultivariateGaussianDist, HealPixMapPriorDist, Prior)):
             return {'__prior__': True, '__module__': obj.__module__,
                     '__name__': obj.__class__.__name__,
                     'kwargs': dict(obj.get_instantiation_dict())}
@@ -989,7 +1005,7 @@ class BilbyJsonEncoder(json.JSONEncoder):
             if isinstance(obj, units.PrefixUnit):
                 return str(obj)
         except ImportError:
-            logger.info("Cannot import astropy, cannot write cosmological priors")
+            logger.debug("Cannot import astropy, cannot write cosmological priors")
         if isinstance(obj, np.ndarray):
             return {'__array__': True, 'content': obj.tolist()}
         if isinstance(obj, complex):
@@ -1017,6 +1033,41 @@ def encode_astropy_quantity(dct):
     if isinstance(dct['value'], np.ndarray):
         dct['value'] = list(dct['value'])
     return dct
+
+
+def move_old_file(filename, overwrite=False):
+    """ Moves or removes an old file.
+
+    Parameters
+    ----------
+    filename: str
+        Name of the file to be move
+    overwrite: bool, optional
+        Whether or not to remove the file or to change the name
+        to filename + '.old'
+    """
+    if os.path.isfile(filename):
+        if overwrite:
+            logger.debug('Removing existing file {}'.format(filename))
+            os.remove(filename)
+        else:
+            logger.debug(
+                'Renaming existing file {} to {}.old'.format(filename,
+                                                             filename))
+            os.rename(filename, filename + '.old')
+    logger.debug("Saving result to {}".format(filename))
+
+
+def load_json(filename, gzip):
+    if gzip or os.path.splitext(filename)[1].lstrip('.') == 'gz':
+        import gzip
+        with gzip.GzipFile(filename, 'r') as file:
+            json_str = file.read().decode('utf-8')
+        dictionary = json.loads(json_str, object_hook=decode_bilby_json)
+    else:
+        with open(filename, 'r') as file:
+            dictionary = json.load(file, object_hook=decode_bilby_json)
+    return dictionary
 
 
 def decode_bilby_json(dct):
@@ -1051,8 +1102,8 @@ def decode_astropy_cosmology(dct):
         del dct['__cosmology__'], dct['__name__']
         return cosmo_cls(**dct)
     except ImportError:
-        logger.info("Cannot import astropy, cosmological priors may not be "
-                    "properly loaded.")
+        logger.debug("Cannot import astropy, cosmological priors may not be "
+                     "properly loaded.")
         return dct
 
 
@@ -1065,8 +1116,8 @@ def decode_astropy_quantity(dct):
             del dct['__astropy_quantity__']
             return units.Quantity(**dct)
     except ImportError:
-        logger.info("Cannot import astropy, cosmological priors may not be "
-                    "properly loaded.")
+        logger.debug("Cannot import astropy, cosmological priors may not be "
+                     "properly loaded.")
         return dct
 
 
@@ -1096,6 +1147,63 @@ def reflect(u):
     u[idxs_even] = np.mod(u[idxs_even], 1)
     u[~idxs_even] = 1 - np.mod(u[~idxs_even], 1)
     return u
+
+
+def safe_file_dump(data, filename, module):
+    """ Safely dump data to a .pickle file
+
+    Parameters
+    ----------
+    data:
+        data to dump
+    filename: str
+        The file to dump to
+    module: pickle, dill
+        The python module to use
+    """
+
+    temp_filename = filename + ".temp"
+    with open(temp_filename, "wb") as file:
+        module.dump(data, file)
+    os.rename(temp_filename, filename)
+
+
+def latex_plot_format(func):
+    """
+    Wrap a plotting function to set rcParams so that text renders nicely with
+    latex and Computer Modern Roman font.
+    """
+    @functools.wraps(func)
+    def wrapper_decorator(*args, **kwargs):
+        from matplotlib import rcParams
+        _old_tex = rcParams["text.usetex"]
+        _old_serif = rcParams["font.serif"]
+        _old_family = rcParams["font.family"]
+        if find_executable("latex"):
+            rcParams["text.usetex"] = True
+            rcParams['text.latex.preamble'] = r'\newcommand{\mathdefault}[1][]{}'
+        else:
+            rcParams["text.usetex"] = False
+        rcParams["font.serif"] = "Computer Modern Roman"
+        rcParams["font.family"] = "serif"
+        value = func(*args, **kwargs)
+        rcParams["text.usetex"] = _old_tex
+        rcParams["font.serif"] = _old_serif
+        rcParams["font.family"] = _old_family
+        return value
+    return wrapper_decorator
+
+
+def safe_save_figure(fig, filename, **kwargs):
+    from matplotlib import rcParams
+    try:
+        fig.savefig(fname=filename, **kwargs)
+    except RuntimeError:
+        logger.debug(
+            "Failed to save plot with tex labels turning off tex."
+        )
+        rcParams["text.usetex"] = False
+        fig.savefig(fname=filename, **kwargs)
 
 
 class IllegalDurationAndSamplingFrequencyException(Exception):
