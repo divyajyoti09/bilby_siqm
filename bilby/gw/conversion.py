@@ -342,6 +342,7 @@ def total_mass_and_mass_ratio_to_component_masses(mass_ratio, total_mass):
     return mass_1, mass_2
 
 
+
 def symmetric_mass_ratio_to_mass_ratio(symmetric_mass_ratio):
     """
     Convert the symmetric mass ratio to the normal mass ratio.
@@ -680,6 +681,30 @@ def lambda_tilde_to_lambda_1_lambda_2(
         (1 - 4 * eta)**0.5 * (1 + 9 * eta - 11 * eta**2) * (1 - q**-5))
     lambda_2 = lambda_1 / q**5
     return lambda_1, lambda_2
+
+def dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(dQuadMon1, dQuadMon2):
+    """
+    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
+
+    Parameters
+    ----------
+    dQuadMon1: float
+        Spin-induced quadrupole parameter of the heavier object
+    dQuadMon2: float
+        Spin-induced quadrupole parameter of the lighter object
+
+    Return
+    ------
+    dQuadMonS: float
+        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
+    dQuadMonA: float
+        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
+    """
+
+    dQuadMonS=1./2.(dQuadMon1+dQuadMon2)
+    dQuadMonA=1./2.(dQuadMon1-dQuadMon2)
+    return dQuadMonS, dQuadMonA
+
 
 
 def _generate_all_cbc_parameters(sample, defaults, base_conversion,

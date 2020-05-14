@@ -8,6 +8,8 @@ from .conversion import bilby_to_lalsimulation_spins
 from .utils import (lalsim_GetApproximantFromString,
                     lalsim_SimInspiralFD,
                     lalsim_SimInspiralChooseFDWaveform,
+                    lalsim_SimInspiralWaveformParamsInsertdQuadMon1,
+                    lalsim_SimInspiralWaveformParamsInsertdQuadMon2,
                     lalsim_SimInspiralWaveformParamsInsertTidalLambda1,
                     lalsim_SimInspiralWaveformParamsInsertTidalLambda2,
                     lalsim_SimInspiralChooseFDWaveformSequence)
@@ -100,7 +102,7 @@ def lal_binary_black_hole(
 
 def lal_binary_neutron_star(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, lambda_1, lambda_2,
+        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, lambda_1, lambda_2,dQuadMon1,dQuadMon2,
         **kwargs):
     """ A Binary Neutron Star waveform model using lalsimulation
 
@@ -135,6 +137,10 @@ def lal_binary_neutron_star(
         Dimensionless tidal deformability of mass_1
     lambda_2: float
         Dimensionless tidal deformability of mass_2
+    dQuadMon1: float
+        Spin-induced quadrupole moment  of mass_1
+    dQuadMon2: float
+        Spin-induced quadrupole moment of  mass_2
     kwargs: dict
         Optional keyword arguments
         Supported arguments:
@@ -178,7 +184,7 @@ def lal_binary_neutron_star(
         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_12=phi_12,
-        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2, **waveform_kwargs)
+        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2i,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
 
 
 def lal_eccentric_binary_black_hole_no_spins(
@@ -250,7 +256,7 @@ def lal_eccentric_binary_black_hole_no_spins(
 def _base_lal_cbc_fd_waveform(
         frequency_array, mass_1, mass_2, luminosity_distance, theta_jn, phase,
         a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0, phi_12=0.0, phi_jl=0.0,
-        lambda_1=0.0, lambda_2=0.0, eccentricity=0.0, **waveform_kwargs):
+        lambda_1=0.0, lambda_2=0.0, eccentricity=0.0,dQuadMon1=0.0,dQuadMon2=0.0, **waveform_kwargs):
     """ Generate a cbc waveform model using lalsimulation
 
     Parameters
@@ -285,6 +291,10 @@ def _base_lal_cbc_fd_waveform(
         Tidal deformability of the more massive object
     lambda_2: float
         Tidal deformability of the less massive object
+    dQuadMon1: float
+        Spin-induced quadrupole moment  of mass_1
+    dQuadMon2: float
+        Spin-induced quadrupole moment of  mass_2
     kwargs: dict
         Optional keyword arguments
 
@@ -342,6 +352,10 @@ def _base_lal_cbc_fd_waveform(
         waveform_dictionary, lambda_1)
     lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
         waveform_dictionary, lambda_2)
+    lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
+        waveform_dictionary, dQuadMon1)
+    lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
+        waveform_dictionary, dQuadMon2)
 
     if ('mode_array' in waveform_kwargs) and waveform_kwargs['mode_array'] is not None:
         mode_array = waveform_kwargs['mode_array']
@@ -431,12 +445,12 @@ def binary_black_hole_roq(
         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_jl=phi_jl,
-        phi_12=phi_12, lambda_1=0.0, lambda_2=0.0, **waveform_kwargs)
+        phi_12=phi_12, lambda_1=0.0, lambda_2=0.0, dQuadMon1=0.0,dQuadMon2=0.0, **waveform_kwargs)
 
 
 def binary_neutron_star_roq(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, phi_jl, lambda_1, lambda_2, theta_jn, phase,
+        phi_12, a_2, tilt_2, phi_jl, lambda_1, lambda_2, dQuadMon1,dQuadMon2, theta_jn, phase,
         **waveform_arguments):
     waveform_kwargs = dict(
         waveform_approximant='IMRPhenomD_NRTidal', reference_frequency=20.0)
@@ -445,12 +459,12 @@ def binary_neutron_star_roq(
         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_jl=phi_jl,
-        phi_12=phi_12, lambda_1=lambda_1, lambda_2=lambda_2, **waveform_kwargs)
+        phi_12=phi_12, lambda_1=lambda_1, lambda_2=lambda_2, dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
 
 
 def _base_roq_waveform(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, lambda_1, lambda_2, phi_jl, theta_jn, phase,
+        phi_12, a_2, tilt_2, lambda_1, lambda_2, phi_jl, theta_jn, phase,dQuadMon1,dQuadMon2,
         **waveform_arguments):
     """
     See https://git.ligo.org/lscsoft/lalsuite/blob/master/lalsimulation/src/LALSimInspiral.c#L1460
@@ -515,6 +529,11 @@ def _base_roq_waveform(
         waveform_dictionary, lambda_1)
     lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
         waveform_dictionary, lambda_2)
+    lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
+        waveform_dictionary, dQuadMon1)
+    lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
+        waveform_dictionary, dQuadMon2)
+
 
     iota, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z = bilby_to_lalsimulation_spins(
         theta_jn=theta_jn, phi_jl=phi_jl, tilt_1=tilt_1, tilt_2=tilt_2,
