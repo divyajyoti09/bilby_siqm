@@ -1,0 +1,221 @@
+diff --git a/bilby/gw/conversion.py b/bilby/gw/conversion.py
+index c4067c30..e068e7b8 100644
+--- a/bilby/gw/conversion.py
++++ b/bilby/gw/conversion.py
+@@ -342,6 +342,7 @@ def total_mass_and_mass_ratio_to_component_masses(mass_ratio, total_mass):
+     return mass_1, mass_2
+ 
+ 
++
+ def symmetric_mass_ratio_to_mass_ratio(symmetric_mass_ratio):
+     """
+     Convert the symmetric mass ratio to the normal mass ratio.
+@@ -681,6 +682,30 @@ def lambda_tilde_to_lambda_1_lambda_2(
+     lambda_2 = lambda_1 / q**5
+     return lambda_1, lambda_2
+ 
++def dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(dQuadMon1, dQuadMon2):
++    """
++    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
++
++    Parameters
++    ----------
++    dQuadMon1: float
++        Spin-induced quadrupole parameter of the heavier object
++    dQuadMon2: float
++        Spin-induced quadrupole parameter of the lighter object
++
++    Return
++    ------
++    dQuadMonS: float
++        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
++    dQuadMonA: float
++        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
++    """
++
++    dQuadMonS=1./2.(dQuadMon1+dQuadMon2)
++    dQuadMonA=1./2.(dQuadMon1-dQuadMon2)
++    return dQuadMonS, dQuadMonA
++
++
+ 
+ def _generate_all_cbc_parameters(sample, defaults, base_conversion,
+                                  likelihood=None, priors=None):
+diff --git a/bilby/gw/prior.py b/bilby/gw/prior.py
+index 6cf55c51..7e7afd86 100644
+--- a/bilby/gw/prior.py
++++ b/bilby/gw/prior.py
+@@ -13,7 +13,7 @@ from ..core.utils import infer_args_from_method, logger
+ from .conversion import (
+     convert_to_lal_binary_black_hole_parameters,
+     convert_to_lal_binary_neutron_star_parameters, generate_mass_parameters,
+-    generate_tidal_parameters, fill_from_fixed_priors,
++    generate_tidal_parameters,generate_siqm_parameters,fill_from_fixed_priors,
+     chirp_mass_and_mass_ratio_to_total_mass,
+     total_mass_and_mass_ratio_to_component_masses)
+ from .cosmology import get_cosmology
+@@ -527,6 +527,7 @@ class BNSPriorDict(CBCPriorDict):
+         out_sample, _ = convert_to_lal_binary_neutron_star_parameters(out_sample)
+         out_sample = generate_mass_parameters(out_sample)
+         out_sample = generate_tidal_parameters(out_sample)
++	out_sample = generate_siqm_parameters(out_sample)
+         return out_sample
+ 
+     def test_redundancy(self, key, disable_logging=False):
+@@ -545,6 +546,9 @@ class BNSPriorDict(CBCPriorDict):
+         tidal_parameters = \
+             {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda_tilde'}
+ 
++        siqm_parameters = \
++            {'dQuadMon_1', 'dQuadMon_2', 'dQuadMon_S', 'dQuadMon_A'}
++
+         if key in tidal_parameters:
+             if len(tidal_parameters.intersection(sampling_parameters)) > 2:
+                 redundant = True
+@@ -557,6 +561,18 @@ class BNSPriorDict(CBCPriorDict):
+                 redundant = True
+         return redundant
+ 
++	if key in siqm_parameters:
++            if len(siqm_parameters.intersection(sampling_parameters)) > 2:
++                redundant = True
++                logger.disabled = disable_logging
++                logger.warning('{} already in prior. '
++                               'This may lead to unexpected behaviour.'
++                               .format(siqm_parameters.intersection(self)))
++                logger.disabled = False
++            elif len(siqm_parameters.intersection(sampling_parameters)) == 2:
++                redundant = True
++        return redundant
++
+ 
+ Prior._default_latex_labels = {
+     'mass_1': '$m_1$',
+@@ -586,7 +602,11 @@ Prior._default_latex_labels = {
+     'lambda_1': '$\\Lambda_1$',
+     'lambda_2': '$\\Lambda_2$',
+     'lambda_tilde': '$\\tilde{\\Lambda}$',
+-    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'}
++    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'
++    'dQuadMon_1': '$\kappa_1$',
++    'dQuadMon_2': '$\kappa_2$'
++    'dQuadMon_S': '$\kappa_s$'
++    'dQuadMon_A': '$\kappa_a$'}
+ 
+ 
+ class CalibrationPriorDict(PriorDict):
+diff --git a/bilby/gw/source.py b/bilby/gw/source.py
+index 66e4bf96..51f7a1cf 100644
+--- a/bilby/gw/source.py
++++ b/bilby/gw/source.py
+@@ -8,6 +8,8 @@ from .conversion import bilby_to_lalsimulation_spins
+ from .utils import (lalsim_GetApproximantFromString,
+                     lalsim_SimInspiralFD,
+                     lalsim_SimInspiralChooseFDWaveform,
++                    lalsim_SimInspiralWaveformParamsInsertdQuadMon1,
++                    lalsim_SimInspiralWaveformParamsInsertdQuadMon2,
+                     lalsim_SimInspiralWaveformParamsInsertTidalLambda1,
+                     lalsim_SimInspiralWaveformParamsInsertTidalLambda2,
+                     lalsim_SimInspiralChooseFDWaveformSequence)
+@@ -100,7 +102,7 @@ def lal_binary_black_hole(
+ 
+ def lal_binary_neutron_star(
+         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
+-        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, lambda_1, lambda_2,
++        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, lambda_1, lambda_2,dQuadMon1,dQuadMon2,
+         **kwargs):
+     """ A Binary Neutron Star waveform model using lalsimulation
+ 
+@@ -135,6 +137,10 @@ def lal_binary_neutron_star(
+         Dimensionless tidal deformability of mass_1
+     lambda_2: float
+         Dimensionless tidal deformability of mass_2
++    dQuadMon1: float
++        Spin-induced quadrupole moment  of mass_1
++    dQuadMon2: float
++        Spin-induced quadrupole moment of  mass_2
+     kwargs: dict
+         Optional keyword arguments
+         Supported arguments:
+@@ -178,7 +184,7 @@ def lal_binary_neutron_star(
+         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
+         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
+         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_12=phi_12,
+-        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2, **waveform_kwargs)
++        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2i,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
+ 
+ 
+ def lal_eccentric_binary_black_hole_no_spins(
+@@ -250,7 +256,7 @@ def lal_eccentric_binary_black_hole_no_spins(
+ def _base_lal_cbc_fd_waveform(
+         frequency_array, mass_1, mass_2, luminosity_distance, theta_jn, phase,
+         a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0, phi_12=0.0, phi_jl=0.0,
+-        lambda_1=0.0, lambda_2=0.0, eccentricity=0.0, **waveform_kwargs):
++        lambda_1=0.0, lambda_2=0.0, eccentricity=0.0,dQuadMon1=0.0,dQuadMon2=0.0, **waveform_kwargs):
+     """ Generate a cbc waveform model using lalsimulation
+ 
+     Parameters
+@@ -285,6 +291,10 @@ def _base_lal_cbc_fd_waveform(
+         Tidal deformability of the more massive object
+     lambda_2: float
+         Tidal deformability of the less massive object
++    dQuadMon1: float
++        Spin-induced quadrupole moment  of mass_1
++    dQuadMon2: float
++        Spin-induced quadrupole moment of  mass_2
+     kwargs: dict
+         Optional keyword arguments
+ 
+@@ -342,6 +352,10 @@ def _base_lal_cbc_fd_waveform(
+         waveform_dictionary, lambda_1)
+     lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
+         waveform_dictionary, lambda_2)
++    lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
++        waveform_dictionary, dQuadMon1)
++    lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
++        waveform_dictionary, dQuadMon2)
+ 
+     if ('mode_array' in waveform_kwargs) and waveform_kwargs['mode_array'] is not None:
+         mode_array = waveform_kwargs['mode_array']
+@@ -431,12 +445,12 @@ def binary_black_hole_roq(
+         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
+         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
+         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_jl=phi_jl,
+-        phi_12=phi_12, lambda_1=0.0, lambda_2=0.0, **waveform_kwargs)
++        phi_12=phi_12, lambda_1=0.0, lambda_2=0.0, dQuadMon1=0.0,dQuadMon2=0.0, **waveform_kwargs)
+ 
+ 
+ def binary_neutron_star_roq(
+         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
+-        phi_12, a_2, tilt_2, phi_jl, lambda_1, lambda_2, theta_jn, phase,
++        phi_12, a_2, tilt_2, phi_jl, lambda_1, lambda_2, dQuadMon1,dQuadMon2, theta_jn, phase,
+         **waveform_arguments):
+     waveform_kwargs = dict(
+         waveform_approximant='IMRPhenomD_NRTidal', reference_frequency=20.0)
+@@ -445,12 +459,12 @@ def binary_neutron_star_roq(
+         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
+         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
+         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_jl=phi_jl,
+-        phi_12=phi_12, lambda_1=lambda_1, lambda_2=lambda_2, **waveform_kwargs)
++        phi_12=phi_12, lambda_1=lambda_1, lambda_2=lambda_2, dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
+ 
+ 
+ def _base_roq_waveform(
+         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
+-        phi_12, a_2, tilt_2, lambda_1, lambda_2, phi_jl, theta_jn, phase,
++        phi_12, a_2, tilt_2, lambda_1, lambda_2, phi_jl, theta_jn, phase,dQuadMon1,dQuadMon2,
+         **waveform_arguments):
+     """
+     See https://git.ligo.org/lscsoft/lalsuite/blob/master/lalsimulation/src/LALSimInspiral.c#L1460
+@@ -515,6 +529,11 @@ def _base_roq_waveform(
+         waveform_dictionary, lambda_1)
+     lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
+         waveform_dictionary, lambda_2)
++    lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
++        waveform_dictionary, dQuadMon1)
++    lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
++        waveform_dictionary, dQuadMon2)
++
+ 
+     iota, spin_1x, spin_1y, spin_1z, spin_2x, spin_2y, spin_2z = bilby_to_lalsimulation_spins(
+         theta_jn=theta_jn, phi_jl=phi_jl, tilt_1=tilt_1, tilt_2=tilt_2,
