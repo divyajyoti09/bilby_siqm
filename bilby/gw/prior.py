@@ -547,7 +547,7 @@ class BNSPriorDict(CBCPriorDict):
             {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda_tilde'}
 
         siqm_parameters = \
-            {'dQuadMon_1', 'dQuadMon_2', 'dQuadMon_S', 'dQuadMon_A'}
+            {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
 
         if key in tidal_parameters:
             if len(tidal_parameters.intersection(sampling_parameters)) > 2:
@@ -603,10 +603,10 @@ Prior._default_latex_labels = {
     'lambda_2': '$\\Lambda_2$',
     'lambda_tilde': '$\\tilde{\\Lambda}$',
     'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'
-    'dQuadMon_1': '$\kappa_1$',
-    'dQuadMon_2': '$\kappa_2$'
-    'dQuadMon_S': '$\kappa_s$'
-    'dQuadMon_A': '$\kappa_a$'}
+    'dQuadMon1': '$\delta\kappa_1$',
+    'dQuadMon2': '$\delta\kappa_2$'
+    'dQuadMonS': '$\delta\kappa_s$'
+    'dQuadMonA': '$\delta\kappa_a$'}
 
 
 class CalibrationPriorDict(PriorDict):

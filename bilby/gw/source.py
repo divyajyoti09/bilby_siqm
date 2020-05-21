@@ -24,7 +24,7 @@ except ImportError:
 
 def lal_binary_black_hole(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, **kwargs):
+        phi_12, a_2, tilt_2, phi_jl, theta_jn,dQuadMon1,dQuadMon2, phase, **kwargs):
     """ A Binary Black Hole waveform model using lalsimulation
 
     Parameters
@@ -95,7 +95,7 @@ def lal_binary_black_hole(
     waveform_kwargs.update(kwargs)
     return _base_lal_cbc_fd_waveform(
         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
-        luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
+        luminosity_distance=luminosity_distance, theta_jn=theta_jn,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, phase=phase,
         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_12=phi_12,
         phi_jl=phi_jl, **waveform_kwargs)
 
@@ -184,7 +184,7 @@ def lal_binary_neutron_star(
         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_12=phi_12,
-        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2i,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
+        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
 
 
 def lal_eccentric_binary_black_hole_no_spins(

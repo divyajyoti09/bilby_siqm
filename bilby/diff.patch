@@ -1,3 +1,6 @@
+diff --git a/bilby/diff.patch b/bilby/diff.patch
+new file mode 100644
+index 00000000..e69de29b
 diff --git a/bilby/gw/conversion.py b/bilby/gw/conversion.py
 index c4067c30..e068e7b8 100644
 --- a/bilby/gw/conversion.py
@@ -41,8 +44,20 @@ index c4067c30..e068e7b8 100644
  
  def _generate_all_cbc_parameters(sample, defaults, base_conversion,
                                   likelihood=None, priors=None):
+diff --git a/bilby/gw/likelihood.py b/bilby/gw/likelihood.py
+index bdfb8de5..36aff37b 100644
+--- a/bilby/gw/likelihood.py
++++ b/bilby/gw/likelihood.py
+@@ -270,6 +270,7 @@ class GravitationalWaveTransient(Likelihood):
+         if self.time_marginalization:
+             if self.jitter_time:
+                 self.parameters['geocent_time'] += self.parameters['time_jitter']
++#LAL_PREFIX=${LAL_PREFIX:-"${HOME}/opt/lal_kska"}
+             d_inner_h_tc_array = np.zeros(
+                 self.interferometers.frequency_array[0:-1].shape,
+                 dtype=np.complex128)
 diff --git a/bilby/gw/prior.py b/bilby/gw/prior.py
-index 6cf55c51..7e7afd86 100644
+index 6cf55c51..ad0d5081 100644
 --- a/bilby/gw/prior.py
 +++ b/bilby/gw/prior.py
 @@ -13,7 +13,7 @@ from ..core.utils import infer_args_from_method, logger
@@ -67,7 +82,7 @@ index 6cf55c51..7e7afd86 100644
              {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda_tilde'}
  
 +        siqm_parameters = \
-+            {'dQuadMon_1', 'dQuadMon_2', 'dQuadMon_S', 'dQuadMon_A'}
++            {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
 +
          if key in tidal_parameters:
              if len(tidal_parameters.intersection(sampling_parameters)) > 2:
@@ -97,15 +112,15 @@ index 6cf55c51..7e7afd86 100644
      'lambda_tilde': '$\\tilde{\\Lambda}$',
 -    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'}
 +    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'
-+    'dQuadMon_1': '$\kappa_1$',
-+    'dQuadMon_2': '$\kappa_2$'
-+    'dQuadMon_S': '$\kappa_s$'
-+    'dQuadMon_A': '$\kappa_a$'}
++    'dQuadMon1': '$\delta\kappa_1$',
++    'dQuadMon2': '$\delta\kappa_2$'
++    'dQuadMonS': '$\delta\kappa_s$'
++    'dQuadMonA': '$\delta\kappa_a$'}
  
  
  class CalibrationPriorDict(PriorDict):
 diff --git a/bilby/gw/source.py b/bilby/gw/source.py
-index 66e4bf96..51f7a1cf 100644
+index 66e4bf96..28fff664 100644
 --- a/bilby/gw/source.py
 +++ b/bilby/gw/source.py
 @@ -8,6 +8,8 @@ from .conversion import bilby_to_lalsimulation_spins
@@ -117,7 +132,24 @@ index 66e4bf96..51f7a1cf 100644
                      lalsim_SimInspiralWaveformParamsInsertTidalLambda1,
                      lalsim_SimInspiralWaveformParamsInsertTidalLambda2,
                      lalsim_SimInspiralChooseFDWaveformSequence)
-@@ -100,7 +102,7 @@ def lal_binary_black_hole(
+@@ -22,7 +24,7 @@ except ImportError:
+ 
+ def lal_binary_black_hole(
+         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
+-        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, **kwargs):
++        phi_12, a_2, tilt_2, phi_jl, theta_jn,dQuadMon1,dQuadMon2, phase, **kwargs):
+     """ A Binary Black Hole waveform model using lalsimulation
+ 
+     Parameters
+@@ -93,14 +95,14 @@ def lal_binary_black_hole(
+     waveform_kwargs.update(kwargs)
+     return _base_lal_cbc_fd_waveform(
+         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
+-        luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
++        luminosity_distance=luminosity_distance, theta_jn=theta_jn,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, phase=phase,
+         a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_12=phi_12,
+         phi_jl=phi_jl, **waveform_kwargs)
+ 
  
  def lal_binary_neutron_star(
          frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
@@ -142,7 +174,7 @@ index 66e4bf96..51f7a1cf 100644
          luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
          a_1=a_1, a_2=a_2, tilt_1=tilt_1, tilt_2=tilt_2, phi_12=phi_12,
 -        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2, **waveform_kwargs)
-+        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2i,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
++        phi_jl=phi_jl, lambda_1=lambda_1, lambda_2=lambda_2,dQuadMon1=dQuadMon1,dQuadMon2=dQuadMon2, **waveform_kwargs)
  
  
  def lal_eccentric_binary_black_hole_no_spins(

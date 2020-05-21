@@ -270,6 +270,7 @@ class GravitationalWaveTransient(Likelihood):
         if self.time_marginalization:
             if self.jitter_time:
                 self.parameters['geocent_time'] += self.parameters['time_jitter']
+#LAL_PREFIX=${LAL_PREFIX:-"${HOME}/opt/lal_kska"}
             d_inner_h_tc_array = np.zeros(
                 self.interferometers.frequency_array[0:-1].shape,
                 dtype=np.complex128)
