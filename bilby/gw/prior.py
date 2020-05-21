@@ -602,10 +602,10 @@ Prior._default_latex_labels = {
     'lambda_1': '$\\Lambda_1$',
     'lambda_2': '$\\Lambda_2$',
     'lambda_tilde': '$\\tilde{\\Lambda}$',
-    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$'
+    'delta_lambda_tilde': '$\\delta\\tilde{\\Lambda}$',
     'dQuadMon1': '$\delta\kappa_1$',
-    'dQuadMon2': '$\delta\kappa_2$'
-    'dQuadMonS': '$\delta\kappa_s$'
+    'dQuadMon2': '$\delta\kappa_2$',
+    'dQuadMonS': '$\delta\kappa_s$',
     'dQuadMonA': '$\delta\kappa_a$'}
 
 
