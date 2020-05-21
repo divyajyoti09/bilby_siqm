@@ -1015,6 +1015,37 @@ def generate_tidal_parameters(sample):
     return output_sample
 
 
+
+def generate_siqm_parameters(sample):
+    """
+    Generate all siqm parameters
+
+    dQuadMonS, dQuadMonA
+
+    Parameters
+    ----------
+    sample: dict, pandas.DataFrame
+        Should contain dQuadMon1, dQuadMon2
+
+    Returns
+    -------
+    output_sample: dict, pandas.DataFrame
+        Updated sample
+    """
+    output_sample = sample.copy()
+
+    output_sample['lambda_tilde'] =\
+        dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(
+            output_sample['dQuadMon1'], output_sample['dQuadMon2'])
+    output_sample['dQuadMonS'] = \
+        dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(
+            output_sample['dQuadMon1'], output_sample['dQuadMon2'])
+
+    return output_sample
+
+
+
+
 def generate_source_frame_parameters(sample):
     """
     Generate source frame masses along with redshifts and comoving distance.
