@@ -561,7 +561,7 @@ class BNSPriorDict(CBCPriorDict):
                 redundant = True
         return redundant
 
-	if key in siqm_parameters:
+        if key in siqm_parameters:
             if len(siqm_parameters.intersection(sampling_parameters)) > 2:
                 redundant = True
                 logger.disabled = disable_logging
