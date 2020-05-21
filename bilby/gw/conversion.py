@@ -682,7 +682,7 @@ def lambda_tilde_to_lambda_1_lambda_2(
     lambda_2 = lambda_1 / q**5
     return lambda_1, lambda_2
 
-def dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(dQuadMon1, dQuadMon2):
+def dquadmon1_and_dquadmon2_to_dquadmons(dQuadMon1, dQuadMon2):
     """
     Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
 
@@ -702,9 +702,31 @@ def dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(dQuadMon1, dQuadMon2):
     """
 
     dQuadMonS=1./2.(dQuadMon1+dQuadMon2)
-    dQuadMonA=1./2.(dQuadMon1-dQuadMon2)
-    return dQuadMonS, dQuadMonA
+    return dQuadMonS
 
+
+
+def dquadmon1_and_dquadmon2_to_dquadmona(dQuadMon1, dQuadMon2):
+    """
+    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
+
+    Parameters
+    ----------
+    dQuadMon1: float
+        Spin-induced quadrupole parameter of the heavier object
+    dQuadMon2: float
+        Spin-induced quadrupole parameter of the lighter object
+
+    Return
+    ------
+    dQuadMonS: float
+        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
+    dQuadMonA: float
+        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
+    """
+
+    dQuadMonA=1./2.(dQuadMon1-dQuadMon2)
+    return dQuadMonA
 
 
 def _generate_all_cbc_parameters(sample, defaults, base_conversion,
@@ -1035,10 +1057,10 @@ def generate_siqm_parameters(sample):
     output_sample = sample.copy()
 
     output_sample['dQuadMonS'] =\
-        dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(
+        dquadmon1_and_dquadmon2_to_dquadmons(
             output_sample['dQuadMon1'], output_sample['dQuadMon2'])
     output_sample['dQuadMonA'] = \
-        dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(
+        dquadmon1_and_dquadmon2_to_dquadmona(
             output_sample['dQuadMon1'], output_sample['dQuadMon2'])
 
     return output_sample
