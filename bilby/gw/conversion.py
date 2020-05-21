@@ -1034,10 +1034,10 @@ def generate_siqm_parameters(sample):
     """
     output_sample = sample.copy()
 
-    output_sample['lambda_tilde'] =\
+    output_sample['dQuadMonS'] =\
         dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(
             output_sample['dQuadMon1'], output_sample['dQuadMon2'])
-    output_sample['dQuadMonS'] = \
+    output_sample['dQuadMonA'] = \
         dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(
             output_sample['dQuadMon1'], output_sample['dQuadMon2'])
 
