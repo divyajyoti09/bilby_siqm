@@ -527,7 +527,7 @@ class BNSPriorDict(CBCPriorDict):
         out_sample, _ = convert_to_lal_binary_neutron_star_parameters(out_sample)
         out_sample = generate_mass_parameters(out_sample)
         out_sample = generate_tidal_parameters(out_sample)
-	out_sample = generate_siqm_parameters(out_sample)
+        out_sample = generate_siqm_parameters(out_sample)
         return out_sample
 
     def test_redundancy(self, key, disable_logging=False):
