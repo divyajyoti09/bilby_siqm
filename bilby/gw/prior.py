@@ -13,7 +13,7 @@ from ..core.utils import infer_args_from_method, logger
 from .conversion import (
     convert_to_lal_binary_black_hole_parameters,
     convert_to_lal_binary_neutron_star_parameters, generate_mass_parameters,
-    generate_tidal_parameters,generate_siqm_parameters,fill_from_fixed_priors,
+    generate_tidal_parameters,fill_from_fixed_priors,
     chirp_mass_and_mass_ratio_to_total_mass,
     total_mass_and_mass_ratio_to_component_masses)
 from .cosmology import get_cosmology
@@ -527,7 +527,6 @@ class BNSPriorDict(CBCPriorDict):
         out_sample, _ = convert_to_lal_binary_neutron_star_parameters(out_sample)
         out_sample = generate_mass_parameters(out_sample)
         out_sample = generate_tidal_parameters(out_sample)
-        out_sample = generate_siqm_parameters(out_sample)
         return out_sample
 
     def test_redundancy(self, key, disable_logging=False):

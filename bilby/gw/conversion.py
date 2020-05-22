@@ -837,11 +837,7 @@ def generate_all_bns_parameters(sample, likelihood=None, priors=None):
     except KeyError as e:
         logger.debug(
             "Generation of tidal parameters failed with message {}".format(e))
-    try:
-        output_sample = generate_siqm_parameters(output_sample)
-    except KeyError as e:
-        logger.debug(
-            "Generation of siqm  parameters failed with message {}".format(e))
+
     return output_sample
 
 
@@ -1042,33 +1038,6 @@ def generate_tidal_parameters(sample):
     return output_sample
 
 
-
-def generate_siqm_parameters(sample):
-    """
-    Generate all siqm parameters
-
-    dQuadMonS, dQuadMonA
-
-    Parameters
-    ----------
-    sample: dict, pandas.DataFrame
-        Should contain dQuadMon1, dQuadMon2
-
-    Returns
-    -------
-    output_sample: dict, pandas.DataFrame
-        Updated sample
-    """
-    output_sample = sample.copy()
-
-    output_sample['dQuadMonS'] =\
-        dquadmon1_and_dquadmon2_to_dquadmons(
-            output_sample['dQuadMon1'], output_sample['dQuadMon2'])
-    output_sample['dQuadMonA'] = \
-        dquadmon1_and_dquadmon2_to_dquadmona(
-            output_sample['dQuadMon1'], output_sample['dQuadMon2'])
-
-    return output_sample
 
 
 
