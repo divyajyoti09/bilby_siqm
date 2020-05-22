@@ -837,6 +837,11 @@ def generate_all_bns_parameters(sample, likelihood=None, priors=None):
     except KeyError as e:
         logger.debug(
             "Generation of tidal parameters failed with message {}".format(e))
+    try:
+        output_sample = generate_siqm_parameters(output_sample)
+    except KeyError as e:
+        logger.debug(
+            "Generation of siqm  parameters failed with message {}".format(e))
     return output_sample
 
 
