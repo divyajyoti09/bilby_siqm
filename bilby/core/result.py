@@ -1,5 +1,6 @@
 from __future__ import division
 
+import inspect
 import os
 from collections import OrderedDict, namedtuple
 from copy import copy
@@ -22,7 +23,8 @@ from .utils import (
     check_directory_exists_and_if_not_mkdir,
     latex_plot_format, safe_save_figure,
     BilbyJsonEncoder, load_json,
-    move_old_file, get_version_information
+    move_old_file, get_version_information,
+    decode_bilby_json,
 )
 from .prior import Prior, PriorDict, DeltaFunction
 
@@ -92,6 +94,140 @@ def read_in_result(filename=None, outdir=None, label=None, extension='json', gzi
         raise ValueError("No filetype extension provided")
     else:
         raise ValueError("Filetype {} not understood".format(extension))
+    return result
+
+
+def get_weights_for_reweighting(
+        result, new_likelihood=None, new_prior=None, old_likelihood=None,
+        old_prior=None):
+    """ Calculate the weights for reweight()
+
+    See bilby.core.result.reweight() for help with the inputs
+
+    Returns
+    -------
+    ln_weights: array
+        An array of the natural-log weights
+    new_log_likelihood_array: array
+        An array of the natural-log likelihoods
+    new_log_prior_array: array
+        An array of the natural-log priors
+
+    """
+    nposterior = len(result.posterior)
+    old_log_likelihood_array = np.zeros(nposterior)
+    old_log_prior_array = np.zeros(nposterior)
+    new_log_likelihood_array = np.zeros(nposterior)
+    new_log_prior_array = np.zeros(nposterior)
+
+    for ii, sample in result.posterior.iterrows():
+        # Convert sample to dictionary
+        par_sample = {key: sample[key] for key in result.search_parameter_keys}
+
+        if old_likelihood is not None:
+            old_likelihood.parameters.update(par_sample)
+            old_log_likelihood_array[ii] = old_likelihood.log_likelihood()
+        else:
+            old_log_likelihood_array[ii] = sample["log_likelihood"]
+
+        if new_likelihood is not None:
+            new_likelihood.parameters.update(par_sample)
+            new_log_likelihood_array[ii] = new_likelihood.log_likelihood()
+        else:
+            # Don't perform likelihood reweighting (i.e. likelihood isn't updated)
+            new_log_likelihood_array[ii] = old_log_likelihood_array[ii]
+
+        if old_prior is not None:
+            old_log_prior_array[ii] = old_prior.ln_prob(par_sample)
+        else:
+            old_log_prior_array[ii] = sample["log_prior"]
+
+        if new_prior is not None:
+            new_log_prior_array[ii] = new_prior.ln_prob(par_sample)
+        else:
+            # Don't perform prior reweighting (i.e. prior isn't updated)
+            new_log_prior_array[ii] = old_log_prior_array[ii]
+
+    ln_weights = (
+        new_log_likelihood_array + new_log_prior_array - old_log_likelihood_array - old_log_prior_array)
+
+    return ln_weights, new_log_likelihood_array, new_log_prior_array
+
+
+def rejection_sample(posterior, weights):
+    """ Perform rejection sampling on a posterior using weights
+
+    Parameters
+    ----------
+    posterior: pd.DataFrame or np.ndarray of shape (nsamples, nparameters)
+        The dataframe or array containing posterior samples
+    weights: np.ndarray
+        An array of weights
+
+    Returns
+    -------
+    reweighted_posterior: pd.DataFrame
+        The posterior resampled using rejection sampling
+
+    """
+    keep = weights > np.random.uniform(0, max(weights), weights.shape)
+    return posterior[keep]
+
+
+def reweight(result, label=None, new_likelihood=None, new_prior=None,
+             old_likelihood=None, old_prior=None):
+    """ Reweight a result to a new likelihood/prior using rejection sampling
+
+    Parameters
+    ----------
+    label: str, optional
+        An updated label to apply to the result object
+    new_likelihood: bilby.core.likelood.Likelihood, (optional)
+        If given, the new likelihood to reweight too. If not given, likelihood
+        reweighting is not applied
+    new_prior: bilby.core.prior.PriorDict, (optional)
+        If given, the new prior to reweight too. If not given, prior
+        reweighting is not applied
+    old_likelihood: bilby.core.likelihood.Likelihood, (optional)
+        If given, calculate the old likelihoods from this object. If not given,
+        the values stored in the posterior are used.
+    old_prior: bilby.core.prior.PriorDict, (optional)
+        If given, calculate the old prior from this object. If not given,
+        the values stored in the posterior are used.
+
+    Returns
+    -------
+    result: bilby.core.result.Result
+        A copy of the result object with a reweighted posterior
+
+    """
+
+    result = copy(result)
+    nposterior = len(result.posterior)
+    logger.info("Reweighting posterior with {} samples".format(nposterior))
+
+    ln_weights, new_log_likelihood_array, new_log_prior_array = get_weights_for_reweighting(
+        result, new_likelihood=new_likelihood, new_prior=new_prior,
+        old_likelihood=old_likelihood, old_prior=old_prior)
+
+    # Overwrite the likelihood and prior evaluations
+    result.posterior["log_likelihood"] = new_log_likelihood_array
+    result.posterior["log_prior"] = new_log_prior_array
+
+    weights = np.exp(ln_weights)
+
+    result.posterior = rejection_sample(result.posterior, weights=weights)
+    logger.info("Rejection sampling resulted in {} samples".format(len(result.posterior)))
+    result.meta_data["reweighted_using_rejection_sampling"] = True
+
+    result.log_evidence += logsumexp(ln_weights) - np.log(nposterior)
+    result.priors = new_prior
+
+    if label:
+        result.label = label
+    else:
+        result.label += "_reweighted"
+
     return result
 
 
@@ -223,10 +359,27 @@ class Result(object):
 
         if os.path.isfile(filename):
             dictionary = deepdish.io.load(filename)
-            # Some versions of deepdish/pytables return the dictionanary as
+            # Some versions of deepdish/pytables return the dictionary as
             # a dictionary with a key 'data'
             if len(dictionary) == 1 and 'data' in dictionary:
                 dictionary = dictionary['data']
+
+            if "priors" in dictionary:
+                # parse priors from JSON string (allowing for backwards
+                # compatibility)
+                if not isinstance(dictionary["priors"], PriorDict):
+                    try:
+                        priordict = PriorDict()
+                        for key, value in dictionary["priors"].items():
+                            if key not in ["__module__", "__name__", "__prior_dict__"]:
+                                priordict[key] = decode_bilby_json(value)
+                        dictionary["priors"] = priordict
+                    except Exception as e:
+                        raise IOError(
+                            "Unable to parse priors from '{}':\n{}".format(
+                                filename, e,
+                            )
+                        )
             try:
                 if isinstance(dictionary.get('posterior', None), dict):
                     dictionary['posterior'] = pd.DataFrame(dictionary['posterior'])
@@ -421,9 +574,10 @@ class Result(object):
             'injection_parameters', 'meta_data', 'search_parameter_keys',
             'fixed_parameter_keys', 'constraint_parameter_keys',
             'sampling_time', 'sampler_kwargs', 'use_ratio',
-            'log_likelihood_evaluations', 'log_prior_evaluations', 'samples',
-            'nested_samples', 'walkers', 'nburn', 'parameter_labels',
-            'parameter_labels_with_unit', 'version']
+            'log_likelihood_evaluations', 'log_prior_evaluations',
+            'num_likelihood_evaluations', 'samples', 'nested_samples',
+            'walkers', 'nburn', 'parameter_labels', 'parameter_labels_with_unit',
+            'version']
         dictionary = OrderedDict()
         for attr in save_attrs:
             try:
@@ -474,8 +628,9 @@ class Result(object):
                     dictionary['sampler_kwargs'][key] = str(dictionary['sampler_kwargs'])
 
         try:
+            # convert priors to JSON dictionary for both JSON and hdf5 files
+            dictionary["priors"] = dictionary["priors"]._get_json_dict()
             if extension == 'json':
-                dictionary["priors"] = dictionary["priors"]._get_json_dict()
                 if gzip:
                     import gzip
                     # encode to a string
@@ -550,16 +705,20 @@ class Result(object):
 
         """
         latex_labels = []
-        for k in keys:
-            if k in self.search_parameter_keys:
-                idx = self.search_parameter_keys.index(k)
-                latex_labels.append(self.parameter_labels_with_unit[idx])
-            elif k in self.parameter_labels:
-                latex_labels.append(k)
+        for key in keys:
+            if key in self.search_parameter_keys:
+                idx = self.search_parameter_keys.index(key)
+                label = self.parameter_labels_with_unit[idx]
+            elif key in self.parameter_labels:
+                label = key
             else:
+                label = None
                 logger.debug(
-                    'key {} not a parameter label or latex label'.format(k))
-                latex_labels.append(' '.join(k.split('_')))
+                    'key {} not a parameter label or latex label'.format(key)
+                )
+            if label is None:
+                label = key.replace("_", " ")
+            latex_labels.append(label)
         return latex_labels
 
     @property
@@ -939,7 +1098,15 @@ class Result(object):
 
         # Create the data array to plot and pass everything to corner
         xs = self.posterior[plot_parameter_keys].values
-        fig = corner.corner(xs, **kwargs)
+        if len(plot_parameter_keys) > 1:
+            fig = corner.corner(xs, **kwargs)
+        else:
+            ax = kwargs.get("ax", plt.subplot())
+            ax.hist(xs, bins=kwargs["bins"], color=kwargs["color"],
+                    histtype="step", **kwargs["hist_kwargs"])
+            ax.set_xlabel(kwargs["labels"][0])
+            fig = plt.gcf()
+
         axes = fig.get_axes()
 
         #  Add the titles
@@ -988,15 +1155,16 @@ class Result(object):
         idxs = np.arange(nsteps)
         fig, axes = plt.subplots(nrows=ndim, figsize=(6, 3 * ndim))
         walkers = self.walkers[:, :, :]
+        parameter_labels = sanity_check_labels(self.parameter_labels)
         for i, ax in enumerate(axes):
             ax.plot(idxs[:self.nburn + 1], walkers[:, :self.nburn + 1, i].T,
                     lw=0.1, color='r')
-            ax.set_ylabel(self.parameter_labels[i])
+            ax.set_ylabel(parameter_labels[i])
 
         for i, ax in enumerate(axes):
             ax.plot(idxs[self.nburn:], walkers[:, self.nburn:, i].T, lw=0.1,
                     color='k')
-            ax.set_ylabel(self.parameter_labels[i])
+            ax.set_ylabel(parameter_labels[i])
 
         fig.tight_layout()
         outdir = self._safe_outdir_creation(kwargs.get('outdir'), self.plot_walkers)
@@ -1092,7 +1260,7 @@ class Result(object):
         return posterior
 
     def samples_to_posterior(self, likelihood=None, priors=None,
-                             conversion_function=None):
+                             conversion_function=None, npool=1):
         """
         Convert array of samples to posterior (a Pandas data frame)
 
@@ -1123,7 +1291,10 @@ class Result(object):
             else:
                 data_frame['log_prior'] = self.log_prior_evaluations
         if conversion_function is not None:
-            data_frame = conversion_function(data_frame, likelihood, priors)
+            if "npool" in inspect.getargspec(conversion_function).args:
+                data_frame = conversion_function(data_frame, likelihood, priors, npool=npool)
+            else:
+                data_frame = conversion_function(data_frame, likelihood, priors)
         self.posterior = data_frame
 
     def calculate_prior_values(self, priors):
@@ -1473,24 +1644,26 @@ class ResultList(list):
             The result object with the combined evidences.
         """
         self.check_nested_samples()
-        if result.use_ratio:
-            log_bayes_factors = np.array([res.log_bayes_factor for res in self])
-            result.log_bayes_factor = logsumexp(log_bayes_factors, b=1. / len(self))
-            result.log_evidence = result.log_bayes_factor + result.log_noise_evidence
-            result_weights = np.exp(log_bayes_factors - np.max(log_bayes_factors))
-        else:
-            log_evidences = np.array([res.log_evidence for res in self])
-            result.log_evidence = logsumexp(log_evidences, b=1. / len(self))
-            result_weights = np.exp(log_evidences - np.max(log_evidences))
+
+        # Combine evidences
+        log_evidences = np.array([res.log_evidence for res in self])
+        result.log_evidence = logsumexp(log_evidences, b=1. / len(self))
+        result.log_bayes_factor = result.log_evidence - result.log_noise_evidence
+
+        # Propogate uncertainty in combined evidence
         log_errs = [res.log_evidence_err for res in self if np.isfinite(res.log_evidence_err)]
         if len(log_errs) > 0:
-            result.log_evidence_err = logsumexp(2 * np.array(log_errs), b=1. / len(self))
+            result.log_evidence_err = 0.5 * logsumexp(2 * np.array(log_errs), b=1. / len(self))
         else:
             result.log_evidence_err = np.nan
+
+        # Combined posteriors with a weighting
+        result_weights = np.exp(log_evidences - np.max(log_evidences))
         posteriors = list()
         for res, frac in zip(self, result_weights):
             selected_samples = (np.random.uniform(size=len(res.posterior)) < frac)
             posteriors.append(res.posterior[selected_samples])
+
         # remove original nested_samples
         result.nested_samples = None
         result.sampler_kwargs = None
@@ -1718,7 +1891,7 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=[0.68, 0
             len(results), pvals.combined_pvalue))
     ax.set_xlabel("C.I.")
     ax.set_ylabel("Fraction of events in C.I.")
-    ax.legend(linewidth=1, handlelength=2, labelspacing=0.25, fontsize=legend_fontsize)
+    ax.legend(handlelength=2, labelspacing=0.25, fontsize=legend_fontsize)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     fig.tight_layout()

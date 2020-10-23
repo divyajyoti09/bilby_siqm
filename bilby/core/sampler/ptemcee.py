@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from ..utils import logger
+from ..utils import logger, check_directory_exists_and_if_not_mkdir
 from .base_sampler import SamplerError, MCMCSampler
 
 
@@ -193,7 +193,13 @@ class Ptemcee(MCMCSampler):
         )
         self.convergence_inputs = ConvergenceInputs(**convergence_inputs_dict)
 
-        # MultiProcessing inputs
+        # Check if threads was given as an equivalent arg
+        if threads == 1:
+            for equiv in self.npool_equiv_kwargs:
+                if equiv in kwargs:
+                    threads = kwargs.pop(equiv)
+
+        # Store threads
         self.threads = threads
 
         # Misc inputs
@@ -511,6 +517,7 @@ class Ptemcee(MCMCSampler):
         sys.exit(self.exit_code)
 
     def write_current_state(self, plot=True):
+        check_directory_exists_and_if_not_mkdir(self.outdir)
         checkpoint(
             self.iteration,
             self.outdir,

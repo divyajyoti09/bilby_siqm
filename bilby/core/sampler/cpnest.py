@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import array
 import copy
 
 import numpy as np
@@ -47,6 +48,11 @@ class Cpnest(NestedSampler):
             for equiv in self.npoints_equiv_kwargs:
                 if equiv in kwargs:
                     kwargs['nlive'] = kwargs.pop(equiv)
+        if 'nthreads' not in kwargs:
+            for equiv in self.npool_equiv_kwargs:
+                if equiv in kwargs:
+                    kwargs['nthreads'] = kwargs.pop(equiv)
+
         if 'seed' not in kwargs:
             logger.warning('No seed provided, cpnest will use 1234.')
 
@@ -83,8 +89,8 @@ class Cpnest(NestedSampler):
                 prior_samples = self.priors.sample()
                 self._update_bounds()
                 point = LivePoint(
-                    self.names, [prior_samples[name]
-                                 for name in self.names])
+                    self.names, array.array(
+                        'f', [prior_samples[name] for name in self.names]))
                 return point
 
         self._resolve_proposal_functions()
@@ -109,7 +115,7 @@ class Cpnest(NestedSampler):
             out.run()
         except SystemExit as e:
             import sys
-            logger.info(f"Caught exit code {e.args[0]}, exiting with signal {self.exit_code}")
+            logger.info("Caught exit code {}, exiting with signal {}".format(e.args[0], self.exit_code))
             sys.exit(self.exit_code)
 
         if self.plot:

@@ -68,6 +68,9 @@ class Prior(object):
         if sorted(self.__dict__.keys()) != sorted(other.__dict__.keys()):
             return False
         for key in self.__dict__:
+            if key == "least_recently_sampled":
+                # ignore sample drawn from prior in comparison
+                continue
             if type(self.__dict__[key]) is np.ndarray:
                 if not np.array_equal(self.__dict__[key], other.__dict__[key]):
                     return False
@@ -421,7 +424,7 @@ class Prior(object):
             val = other_cls.from_repr(vals)
         else:
             try:
-                val = eval(val, dict(), dict(np=np))
+                val = eval(val, dict(), dict(np=np, inf=np.inf, pi=np.pi))
             except NameError:
                 raise TypeError(
                     "Cannot evaluate prior, "
@@ -440,9 +443,6 @@ class Constraint(Prior):
 
     def prob(self, val):
         return (val > self.minimum) & (val < self.maximum)
-
-    def ln_prob(self, val):
-        return np.log((val > self.minimum) & (val < self.maximum))
 
 
 class PriorException(Exception):

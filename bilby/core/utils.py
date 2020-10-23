@@ -3,9 +3,10 @@ from __future__ import division
 from distutils.spawn import find_executable
 import logging
 import os
+import shutil
+import sys
 from math import fmod
 import argparse
-import traceback
 import inspect
 import functools
 import types
@@ -15,11 +16,11 @@ from importlib import import_module
 import json
 import warnings
 
-from distutils.version import StrictVersion
 import numpy as np
 from scipy.interpolate import interp2d
 from scipy.special import logsumexp
 import pandas as pd
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger('bilby')
 
@@ -28,6 +29,7 @@ speed_of_light = 299792458.0  # m/s
 parsec = 3.085677581491367e+16  # m
 solar_mass = 1.9884099021470415e+30  # Kg
 radius_of_earth = 6378136.6  # m
+gravitational_constant = 6.6743e-11  # m^3 kg^-1 s^-2
 
 _TOL = 14
 
@@ -311,6 +313,12 @@ def ra_dec_to_theta_phi(ra, dec, gmst):
     return theta, phi
 
 
+def theta_phi_to_ra_dec(theta, phi, gmst):
+    ra = phi + gmst
+    dec = np.pi / 2 - theta
+    return ra, dec
+
+
 def gps_time_to_gmst(gps_time):
     """
     Convert gps time to Greenwich mean sidereal time in radians
@@ -549,7 +557,9 @@ def check_directory_exists_and_if_not_mkdir(directory):
         Name of the directory
 
     """
-    if not os.path.exists(directory):
+    if directory == "":
+        return
+    elif not os.path.exists(directory):
         os.makedirs(directory)
         logger.debug('Making directory {}'.format(directory))
     else:
@@ -962,34 +972,16 @@ command_line_args, command_line_parser = set_up_command_line_arguments()
 #  Instantiate the default logging
 setup_logger(print_version=False, log_level=command_line_args.log_level)
 
-if 'DISPLAY' in os.environ:
-    logger.debug("DISPLAY={} environment found".format(os.environ['DISPLAY']))
-    pass
-else:
-    logger.debug('No $DISPLAY environment variable found, so importing \
-                   matplotlib.pyplot with non-interactive "Agg" backend.')
-    import matplotlib
-    import matplotlib.pyplot as plt
-
-    non_gui_backends = matplotlib.rcsetup.non_interactive_bk
-    for backend in non_gui_backends:
-        try:
-            logger.debug("Trying backend {}".format(backend))
-            if StrictVersion(matplotlib.__version__) >= StrictVersion("3.1"):
-                matplotlib.use(backend)
-            else:
-                matplotlib.use(backend, warn=False)
-            plt.switch_backend(backend)
-            break
-        except Exception:
-            print(traceback.format_exc())
-
 
 class BilbyJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
         from .prior import MultivariateGaussianDist, Prior, PriorDict
         from ..gw.prior import HealPixMapPriorDist
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
         if isinstance(obj, PriorDict):
             return {'__prior_dict__': True, 'content': obj._get_json_dict()}
         if isinstance(obj, (MultivariateGaussianDist, HealPixMapPriorDist, Prior)):
@@ -1012,6 +1004,8 @@ class BilbyJsonEncoder(json.JSONEncoder):
             return {'__complex__': True, 'real': obj.real, 'imag': obj.imag}
         if isinstance(obj, pd.DataFrame):
             return {'__dataframe__': True, 'content': obj.to_dict(orient='list')}
+        if isinstance(obj, pd.Series):
+            return {'__series__': True, 'content': obj.to_dict()}
         if inspect.isfunction(obj):
             return {"__function__": True, "__module__": obj.__module__, "__name__": obj.__name__}
         if inspect.isclass(obj):
@@ -1054,7 +1048,7 @@ def move_old_file(filename, overwrite=False):
             logger.debug(
                 'Renaming existing file {} to {}.old'.format(filename,
                                                              filename))
-            os.rename(filename, filename + '.old')
+            shutil.move(filename, filename + '.old')
     logger.debug("Saving result to {}".format(filename))
 
 
@@ -1089,6 +1083,8 @@ def decode_bilby_json(dct):
         return complex(dct["real"], dct["imag"])
     if dct.get("__dataframe__", False):
         return pd.DataFrame(dct['content'])
+    if dct.get("__series__", False):
+        return pd.Series(dct['content'])
     if dct.get("__function__", False) or dct.get("__class__", False):
         default = ".".join([dct["__module__"], dct["__name__"]])
         return getattr(import_module(dct["__module__"]), dct["__name__"], default)
@@ -1165,36 +1161,77 @@ def safe_file_dump(data, filename, module):
     temp_filename = filename + ".temp"
     with open(temp_filename, "wb") as file:
         module.dump(data, file)
-    os.rename(temp_filename, filename)
+    shutil.move(temp_filename, filename)
 
 
 def latex_plot_format(func):
     """
-    Wrap a plotting function to set rcParams so that text renders nicely with
-    latex and Computer Modern Roman font.
+    Wrap the plotting function to set rcParams dependent on environment variables
+
+    The rcparams can be set directly from the env. variable `BILBY_STYLE` to
+    point to a matplotlib style file. Or, if `BILBY_STYLE=default` (any case) a
+    default setup is used, this is enabled by default. To not use any rcParams,
+    set `BILBY_STYLE=none`. Occasionally, issues arrise with the latex
+    `mathdefault` command. A fix is to define this command in the rcParams. An
+    env. variable `BILBY_MATHDEFAULT` can be used to turn this fix on/off.
+    Setting `BILBY_MATHDEFAULT=1` will enable the fix, all other choices
+    (including undefined) will disable it. Additionally, the BILBY_STYLE and
+    BILBY_MATHDEFAULT arguments can be passed into any
+    latex_plot_format-wrapped plotting function and will be set directly.
+
     """
     @functools.wraps(func)
     def wrapper_decorator(*args, **kwargs):
         from matplotlib import rcParams
-        _old_tex = rcParams["text.usetex"]
-        _old_serif = rcParams["font.serif"]
-        _old_family = rcParams["font.family"]
-        if find_executable("latex"):
-            rcParams["text.usetex"] = True
-            rcParams['text.latex.preamble'] = r'\newcommand{\mathdefault}[1][]{}'
+
+        if "BILBY_STYLE" in kwargs:
+            bilby_style = kwargs.pop("BILBY_STYLE")
         else:
-            rcParams["text.usetex"] = False
-        rcParams["font.serif"] = "Computer Modern Roman"
-        rcParams["font.family"] = "serif"
-        value = func(*args, **kwargs)
-        rcParams["text.usetex"] = _old_tex
-        rcParams["font.serif"] = _old_serif
-        rcParams["font.family"] = _old_family
-        return value
+            bilby_style = os.environ.get("BILBY_STYLE", "default")
+
+        if "BILBY_MATHDEFAULT" in kwargs:
+            bilby_mathdefault = kwargs.pop("BILBY_MATHDEFAULT")
+        else:
+            bilby_mathdefault = int(os.environ.get("BILBY_MATHDEFAULT", "0"))
+
+        if bilby_mathdefault == 1:
+            logger.debug("Setting mathdefault in the rcParams")
+            rcParams['text.latex.preamble'] = r'\newcommand{\mathdefault}[1][]{}'
+
+        logger.debug("Using BILBY_STYLE={}".format(bilby_style))
+        if bilby_style.lower() == "none":
+            return func(*args, **kwargs)
+        elif os.path.isfile(bilby_style):
+            plt.style.use(bilby_style)
+            return func(*args, **kwargs)
+        elif bilby_style in plt.style.available:
+            plt.style.use(bilby_style)
+            return func(*args, **kwargs)
+        elif bilby_style.lower() == "default":
+            _old_tex = rcParams["text.usetex"]
+            _old_serif = rcParams["font.serif"]
+            _old_family = rcParams["font.family"]
+            if find_executable("latex"):
+                rcParams["text.usetex"] = True
+            else:
+                rcParams["text.usetex"] = False
+            rcParams["font.serif"] = "Computer Modern Roman"
+            rcParams["font.family"] = "serif"
+            rcParams["text.usetex"] = _old_tex
+            rcParams["font.serif"] = _old_serif
+            rcParams["font.family"] = _old_family
+            return func(*args, **kwargs)
+        else:
+            logger.debug(
+                "Environment variable BILBY_STYLE={} not used"
+                .format(bilby_style)
+            )
+            return func(*args, **kwargs)
     return wrapper_decorator
 
 
 def safe_save_figure(fig, filename, **kwargs):
+    check_directory_exists_and_if_not_mkdir(os.path.dirname(filename))
     from matplotlib import rcParams
     try:
         fig.savefig(fname=filename, **kwargs)
@@ -1204,6 +1241,42 @@ def safe_save_figure(fig, filename, **kwargs):
         )
         rcParams["text.usetex"] = False
         fig.savefig(fname=filename, **kwargs)
+
+
+def kish_log_effective_sample_size(ln_weights):
+    """ Calculate the Kish effective sample size from the natural-log weights
+
+    See https://en.wikipedia.org/wiki/Effective_sample_size for details
+
+    Parameters
+    ----------
+    ln_weights: array
+        An array of the ln-weights
+
+    Returns
+    -------
+    ln_n_eff:
+        The natural-log of the effective sample size
+
+    """
+    log_n_eff = 2 * logsumexp(ln_weights) - logsumexp(2 * ln_weights)
+    return log_n_eff
+
+
+def get_function_path(func):
+    if hasattr(func, "__module__") and hasattr(func, "__name__"):
+        return "{}.{}".format(func.__module__, func.__name__)
+    else:
+        return func
+
+
+def loaded_modules_dict():
+    module_names = sys.modules.keys()
+    vdict = {}
+    for key in module_names:
+        if "." not in key:
+            vdict[key] = str(getattr(sys.modules[key], "__version__", "N/A"))
+    return vdict
 
 
 class IllegalDurationAndSamplingFrequencyException(Exception):

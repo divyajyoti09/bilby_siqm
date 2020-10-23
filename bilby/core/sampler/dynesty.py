@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import datetime
 import dill
 import os
@@ -13,8 +11,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pandas import DataFrame
 
-from ..utils import logger, check_directory_exists_and_if_not_mkdir, reflect, safe_file_dump
+from ..utils import (
+    logger,
+    check_directory_exists_and_if_not_mkdir,
+    reflect,
+    safe_file_dump,
+)
 from .base_sampler import Sampler, NestedSampler
+from ..result import rejection_sample
 
 from numpy import linalg
 from dynesty.utils import unitcheck
@@ -208,6 +212,10 @@ class Dynesty(NestedSampler):
             for equiv in self.walks_equiv_kwargs:
                 if equiv in kwargs:
                     kwargs['walks'] = kwargs.pop(equiv)
+        if "queue_size" not in kwargs:
+            for equiv in self.npool_equiv_kwargs:
+                if equiv in kwargs:
+                    kwargs['queue_size'] = kwargs.pop(equiv)
 
     def _verify_kwargs_against_default_kwargs(self):
         if not self.kwargs['walks']:
@@ -247,11 +255,11 @@ class Dynesty(NestedSampler):
         # Constructing output.
         string = []
         string.append("bound:{:d}".format(bounditer))
-        string.append("nc:{:d}".format(nc))
-        string.append("ncall:{:d}".format(ncall))
+        string.append("nc:{:3d}".format(nc))
+        string.append("ncall:{:.1e}".format(ncall))
         string.append("eff:{:0.1f}%".format(eff))
         string.append("{}={:0.2f}+/-{:0.2f}".format(key, logz, logzerr))
-        string.append("dlogz:{:0.3f}>{:0.2f}".format(delta_logz, dlogz))
+        string.append("dlogz:{:0.3f}>{:0.2g}".format(delta_logz, dlogz))
 
         self.pbar.set_postfix_str(" ".join(string), refresh=False)
         self.pbar.update(niter - self.pbar.n)
@@ -316,10 +324,6 @@ class Dynesty(NestedSampler):
     def run_sampler(self):
         import dynesty
         logger.info("Using dynesty version {}".format(dynesty.__version__))
-        if self.kwargs['live_points'] is None:
-            self.kwargs['live_points'] = (
-                self.get_initial_points_from_prior(
-                    self.kwargs['nlive']))
 
         if self.kwargs.get("sample", "rwalk") == "rwalk":
             logger.info(
@@ -341,10 +345,21 @@ class Dynesty(NestedSampler):
 
         self._setup_pool()
 
-        self.sampler = dynesty.NestedSampler(
-            loglikelihood=_log_likelihood_wrapper,
-            prior_transform=_prior_transform_wrapper,
-            ndim=self.ndim, **self.sampler_init_kwargs)
+        if self.resume:
+            self.resume = self.read_saved_state(continuing=True)
+
+        if self.resume:
+            logger.info('Resume file successfully loaded.')
+        else:
+            if self.kwargs['live_points'] is None:
+                self.kwargs['live_points'] = (
+                    self.get_initial_points_from_prior(self.kwargs['nlive'])
+                )
+            self.sampler = dynesty.NestedSampler(
+                loglikelihood=_log_likelihood_wrapper,
+                prior_transform=_prior_transform_wrapper,
+                ndim=self.ndim, **self.sampler_init_kwargs
+            )
 
         if self.check_point:
             out = self._run_external_sampler_with_checkpointing()
@@ -414,10 +429,6 @@ class Dynesty(NestedSampler):
 
     def _run_external_sampler_with_checkpointing(self):
         logger.debug("Running sampler with checkpointing")
-        if self.resume:
-            resume_file_loaded = self.read_saved_state(continuing=True)
-            if resume_file_loaded:
-                logger.info('Resume file successfully loaded.')
 
         old_ncall = self.sampler.ncall
         sampler_kwargs = self.sampler_function_kwargs.copy()
@@ -572,6 +583,26 @@ class Dynesty(NestedSampler):
         if self.sampler.pool is not None:
             self.sampler.M = self.sampler.pool.map
 
+        self.dump_samples_to_dat()
+
+    def dump_samples_to_dat(self):
+        sampler = self.sampler
+        ln_weights = sampler.saved_logwt - sampler.saved_logz[-1]
+
+        weights = np.exp(ln_weights)
+        samples = rejection_sample(np.array(sampler.saved_v), weights)
+        nsamples = len(samples)
+
+        # If we don't have enough samples, don't dump them
+        if nsamples < 100:
+            return
+
+        filename = "{}/{}_samples.dat".format(self.outdir, self.label)
+        logger.info("Writing {} current samples to {}".format(nsamples, filename))
+
+        df = DataFrame(samples, columns=self.search_parameter_keys)
+        df.to_csv(filename, index=False, header=True, sep=' ')
+
     def plot_current_state(self):
         if self.check_point_plot:
             import dynesty.plotting as dyplot
@@ -601,7 +632,7 @@ class Dynesty(NestedSampler):
                 filename = "{}/{}_checkpoint_stats.png".format(self.outdir, self.label)
                 fig, axs = plt.subplots(nrows=3, sharex=True)
                 for ax, name in zip(axs, ["boundidx", "nc", "scale"]):
-                    ax.plot(getattr(self.sampler, f"saved_{name}"), color="C0")
+                    ax.plot(getattr(self.sampler, "saved_{}".format(name)), color="C0")
                     ax.set_ylabel(name)
                 axs[-1].set_xlabel("iteration")
                 fig.tight_layout()
@@ -685,19 +716,20 @@ def sample_rwalk_bilby(args):
     reject = 0
     nfail = 0
     act = np.inf
-    u_list = [u]
-    v_list = [prior_transform(u)]
-    logl_list = [loglikelihood(v_list[-1])]
-    max_walk_warning = True
+    u_list = []
+    v_list = []
+    logl_list = []
 
-    while len(u_list) < nact * act:
+    ii = 0
+    while ii < nact * act:
+        ii += 1
 
         # Propose a direction on the unit n-sphere.
         drhat = rstate.randn(n)
         drhat /= linalg.norm(drhat)
 
         # Scale based on dimensionality.
-        dr = drhat * rstate.rand()**(1. / n)
+        dr = drhat * rstate.rand() ** (1.0 / n)
 
         # Transform to proposal distribution.
         du = np.dot(axes, dr)
@@ -725,7 +757,7 @@ def sample_rwalk_bilby(args):
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
         logl_prop = loglikelihood(np.array(v_prop))
-        if logl_prop >= loglstar:
+        if logl_prop > loglstar:
             u = u_prop
             v = v_prop
             logl = logl_prop
@@ -748,16 +780,12 @@ def sample_rwalk_bilby(args):
                 old_act=old_act, maxmcmc=maxmcmc)
 
         # If we've taken too many likelihood evaluations then break
-        if accept + reject > maxmcmc and accept > 0:
-            if max_walk_warning:
-                warnings.warn(
-                    "Hit maximum number of walks {} with accept={}, reject={}, "
-                    "and nfail={} try increasing maxmcmc"
-                    .format(maxmcmc, accept, reject, nfail))
-                max_walk_warning = False
-            if accept > 0:
-                # Break if we are above maxmcmc and have at least one accepted point
-                break
+        if accept + reject > maxmcmc:
+            warnings.warn(
+                "Hit maximum number of walks {} with accept={}, reject={}, "
+                "and nfail={} try increasing maxmcmc"
+                .format(maxmcmc, accept, reject, nfail))
+            break
 
     # If the act is finite, pick randomly from within the chain
     if np.isfinite(act) and int(.5 * nact * act) < len(u_list):
@@ -765,17 +793,11 @@ def sample_rwalk_bilby(args):
         u = u_list[idx]
         v = v_list[idx]
         logl = logl_list[idx]
-    elif len(u_list) == 1:
-        logger.warning("Returning the only point in the chain")
-        u = u_list[-1]
-        v = v_list[-1]
-        logl = logl_list[-1]
     else:
-        idx = np.random.randint(int(len(u_list) / 2), len(u_list))
-        logger.warning("Returning random point in second half of the chain")
-        u = u_list[idx]
-        v = v_list[idx]
-        logl = logl_list[idx]
+        logger.debug("Unable to find a new point using walk: returning a random point")
+        u = np.random.uniform(size=n)
+        v = prior_transform(u)
+        logl = loglikelihood(v)
 
     blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
     kwargs["old_act"] = act
