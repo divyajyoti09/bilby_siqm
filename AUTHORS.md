@@ -69,4 +69,4 @@ Sylvia Biscoveanu
 Tathagata Ghosh
 Virginia d'Emilio
 Vivien Raymond
-Krishnendu N V
+Krishnendu NV
