@@ -1,6 +1,5 @@
 import numpy as np
-from lal import CreateDict
-import lalsimulation
+
 
 from ..core import utils
 from ..core.utils import logger
@@ -97,7 +96,7 @@ def lal_siqm(
         catch_waveform_errors=False, pn_spin_order=-1, pn_tidal_order=-1,
         pn_phase_order=-1, pn_amplitude_order=0)
     waveform_kwargs.update(kwargs)
-    wf_dict = waveform_kwargs.get("lal_waveform_dictionary", CreateDict())
+    wf_dict = waveform_kwargs.get("lal_waveform_dictionary", lal.CreateDict())
 
     if dQuadMon1 != 0.:
         lalsimulation.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
