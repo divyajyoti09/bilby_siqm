@@ -267,7 +267,7 @@ class TestLalSIQM(unittest.TestCase):
         )
         self.waveform_kwargs = dict(
             waveform_approximant="IMRPhenomPv2",
-            reference_frequency=50.0,
+            reference_frequency=50.0,catch_waveform_errors=True,
             minimum_frequency=20.0,
         )
         self.frequency_array = bilby.core.utils.create_frequency_series(2048, 4)
@@ -287,6 +287,7 @@ class TestLalSIQM(unittest.TestCase):
             ),
             dict,
         )
+
     def test_lal_siqm_works_without_waveform_parameters(self):
         self.assertIsInstance(
             bilby.gw.source.lal_siqm(
@@ -311,7 +312,6 @@ class TestLalSIQM(unittest.TestCase):
             bilby.gw.source.lal_siqm(
                 self.frequency_array, **raise_error_parameters
             )
-
 
     def test_lal_siqm_works_without_siqm_parameters(self):
         self.parameters.pop("dQuadMon1")
