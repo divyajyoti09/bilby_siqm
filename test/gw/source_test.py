@@ -80,7 +80,7 @@ class TestLalBBH(unittest.TestCase):
     #     self.assertIsInstance(
     #         bilby.gw.source.lal_binary_black_hole(
     #             self.frequency_array, **self.parameters), dict)
-'''
+
     def test_lal_bbh_xpprecession_version(self):
         self.parameters.update(self.waveform_kwargs)
         self.parameters["waveform_approximant"] = "IMRPhenomXP"
@@ -93,7 +93,7 @@ class TestLalBBH(unittest.TestCase):
             self.frequency_array, PhenomXPrecVersion=102, **self.parameters
         )
         self.assertFalse(np.all(out_v223["plus"] == out_v102["plus"]))
-'''
+
 
 class TestLalBNS(unittest.TestCase):
     def setUp(self):
@@ -197,8 +197,6 @@ class TestEccentricLalBBH(unittest.TestCase):
             bilby.gw.source.lal_eccentric_binary_black_hole_no_spins(
                 self.frequency_array, **self.parameters
             )
-
-
 
 
 class TestROQBBH(unittest.TestCase):
@@ -451,14 +449,14 @@ class TestLalSIQM(unittest.TestCase):
         )
         self.frequency_array = bilby.core.utils.create_frequency_series(2048, 4)
         self.bad_parameters = copy(self.parameters)
-        self.bad_parameters["mass_1"] = -300.0
+        self.bad_parameters["mass_1"] = -30.0
 
     def tearDown(self):
         del self.parameters
         del self.waveform_kwargs
         del self.frequency_array
 
-    def test_lal_siqm_runs_with_valid_parameters(self):
+    def test_lal_siqm_works_runs_with_valid_parameters(self):
         self.parameters.update(self.waveform_kwargs)
         self.assertIsInstance(
             bilby.gw.source.lal_siqm(
@@ -466,23 +464,38 @@ class TestLalSIQM(unittest.TestCase):
             ),
             dict,
         )
+    def test_lal_siqm_works_without_waveform_parameters(self):
+        self.assertIsInstance(
+            bilby.gw.source.lal_siqm(
+                self.frequency_array, **self.parameters
+            ),
+            dict,
+        )
 
-
+    def test_waveform_error_catching_siqm(self):
+        self.bad_parameters.update(self.waveform_kwargs)
+        self.assertIsNone(
+            bilby.gw.source.lal_siqm(
+                self.frequency_array, **self.bad_parameters
+            )
+        )
 
     def test_waveform_error_raising_siqm(self):
         raise_error_parameters = copy(self.bad_parameters)
         raise_error_parameters.update(self.waveform_kwargs)
         raise_error_parameters["catch_waveform_errors"] = False
         with self.assertRaises(Exception):
-            bilby.gw.source.lal_siqm(self.frequency_array, **raise_error_parameters)
+            bilby.gw.source.lal_siqm(
+                self.frequency_array, **raise_error_parameters
+            )
 
-    def test_lal_siqm_works_without_waveform_parameters(self):
+
+    def test_lal_siqm_works_without_siqm_parameters(self):
         self.parameters.pop("dQuadMon1")
         self.parameters.pop("dQuadMon2")
         self.parameters.update(self.waveform_kwargs)
         with self.assertRaises(TypeError):
-            bilby.gw.source.lal_siqm(
-            self.frequency_array, **self.parameters)
+            bilby.gw.source.lal_siqm(self.frequency_array, **self.parameters)
 
 
 class TestLalSIQM(unittest.TestCase):
