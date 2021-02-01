@@ -443,7 +443,10 @@ class TestLalSIQM(unittest.TestCase):
 
         )
         self.waveform_kwargs = dict(
-            waveform_approximant="IMRPhenomPv2", reference_frequency=50.0, catch_waveform_errors=True, minimum_frequency=20.0,
+            waveform_approximant="IMRPhenomPv2",
+            reference_frequency=50.0,
+            catch_waveform_errors=True,
+            minimum_frequency=20.0,
         )
         self.frequency_array = bilby.core.utils.create_frequency_series(2048, 4)
         self.bad_parameters = copy(self.parameters)
