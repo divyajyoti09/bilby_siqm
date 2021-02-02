@@ -96,10 +96,9 @@ def lal_siqm(
     waveform_kwargs.update(kwargs)
     wf_dict = waveform_kwargs.get("lal_waveform_dictionary", lal.CreateDict())
 
-    if dQuadMon1 != 0.:
-        lalsim.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
-    if dQuadMon2 != 0.:
-        lalsim.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
+
+    lalsim.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
+    lalsim.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
 
     waveform_kwargs["lal_waveform_dictionary"] = wf_dict
 
