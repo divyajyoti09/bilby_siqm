@@ -353,9 +353,9 @@ def convert_to_lal_siqm_parameters(parameters):
     added_keys: list
         keys which are added to parameters during function call
     """
-    #converted_parameters = parameters.copy()
+    
     converted_parameters, added_keys =\
-        convert_to_lal_binary_black_hole_parameters(converted_parameters)
+        convert_to_lal_binary_black_hole_parameters(parameters)
 
     if not any([key in converted_parameters for key in
                 ['dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA']]):
