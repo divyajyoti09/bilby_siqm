@@ -53,9 +53,9 @@ def lal_siqm(
     phase: float
         The phase at coalescence
     dQuadMon1: float
-        The SIQM of body 1
+        The spin-induced quadrupole moment parameter of body 1
     dQuadMon2: float
-        The SIQM of body 2
+        The spin-induced quadrupole moment parameter of body 2
     kwargs: dict
         Optional keyword arguments
         Supported arguments:
@@ -123,7 +123,7 @@ def lal_siqm(
 def lal_binary_black_hole(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
         phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, **kwargs):
-    """ A Binary Black Hole waveform model using lalsimulation
+    """ Introducing spin-induced quadrupole moment terms (dQuadMon1 and dQuadMon2) to the lal_bbh source  model using lalsimulation
 
     Parameters
     ----------
