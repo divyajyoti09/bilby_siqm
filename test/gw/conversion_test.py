@@ -175,9 +175,6 @@ class TestBasicConversions(unittest.TestCase):
         )
         self.assertTrue((self.delta_lambda_tilde - delta_lambda_tilde) < 1e-5)
 
-    def test_dQuadMon1_and_dQuadMon2_to_dQuadMonS(self):
-        (dQuadMonS, dQuadMonA) = conversion.dQuadMon1_and_dQuadMon2_to_dQuadMonS(self.dQuadMon1, self.dQuadMon2)
-        self.assertTrue(all([self.dQuadMonS - dQuadMonS < 1e-5, self.dQuadMonA - dQuadMonA < 1e-5]))
 
     def test_dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(self):
         (dQuadMonS, dQuadMonA) = conversion.dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(
