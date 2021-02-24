@@ -173,13 +173,13 @@ class TestBasicConversions(unittest.TestCase):
         (dQuadMonS, dQuadMonA) = conversion.dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(
             self.dQuadMon1, self.dQuadMon2
         )
-        self.assertTrue(all([self.dQuadMonS - dQuadMonS < 1e-5, self.dQuadMonA - dQuadMonA < 1e-5]))
+        self.assertTrue(all([np.abs(self.dQuadMonS - dQuadMonS) < 1e-5, np.abs(self.dQuadMonA - dQuadMonA) < 1e-5]))
 
     def test_dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(self):
         (dQuadMon1, dQuadMon2) = conversion.dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
             self.dQuadMonS, self.dQuadMonA
         )
-        self.assertTrue(all([(self.dQuadMon1 - dQuadMon1) < 1e-5, (self.dQuadMon2 - dQuadMon2) < 1e-5]))
+        self.assertTrue(all([np.abs(self.dQuadMon1 - dQuadMon1) < 1e-5, np.abs(self.dQuadMon2 - dQuadMon2) < 1e-5]))
 
 
 class TestConvertToLALParams(unittest.TestCase):

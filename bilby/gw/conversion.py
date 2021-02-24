@@ -364,12 +364,7 @@ def convert_to_lal_siqm_parameters(parameters):
         added_keys = added_keys + ['dQuadMon1', 'dQuadMon2']
         return converted_parameters, added_keys
 
-    if 'dQuadMonS' in converted_parameters.keys():
-        converted_parameters['dQuadMon1'], converted_parameters['dQuadMon2'] =\
-            dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
-                converted_parameters['dQuadMonS'],
-                parameters['dQuadMonA'])
-    elif 'dQuadMonA' in converted_parameters.keys():
+    if 'dQuadMonS' in converted_parameters.keys() and 'dQuadMonA' in converted_parameters.keys():
         converted_parameters['dQuadMon1'], converted_parameters['dQuadMon2'] =\
             dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
                 converted_parameters['dQuadMonS'],
