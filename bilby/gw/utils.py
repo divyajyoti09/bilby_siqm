@@ -691,7 +691,6 @@ def gw_data_find(observatory, gps_start_time, duration, calibration,
 
 
 def build_roq_weights(data, basis, deltaF):
-
     """
     for a data array and reduced basis compute roq weights
     basis: (reduced basis element)*invV (the inverse Vandermonde matrix)
