@@ -1,5 +1,3 @@
-from __future__ import absolute_import, print_function
-
 from collections import namedtuple
 import os
 import signal
@@ -12,8 +10,7 @@ from pandas import DataFrame
 from distutils.version import LooseVersion
 import dill as pickle
 
-from ..utils import (
-    logger, get_progress_bar, check_directory_exists_and_if_not_mkdir)
+from ..utils import logger, check_directory_exists_and_if_not_mkdir
 from .base_sampler import MCMCSampler, SamplerError
 
 
@@ -25,8 +22,8 @@ class Emcee(MCMCSampler):
     documentation for that class for further help. Under Other Parameters, we
     list commonly used kwargs and the bilby defaults.
 
-    Other Parameters
-    ----------------
+    Parameters
+    ==========
     nwalkers: int, (100)
         The number of walkers
     nsteps: int, (100)
@@ -43,7 +40,6 @@ class Emcee(MCMCSampler):
         The number of autocorrelation times to discard as burn-in
     a: float (2)
         The proposal scale factor
-
 
     """
 
@@ -224,7 +220,7 @@ class Emcee(MCMCSampler):
         """ Defines various things related to checkpointing and storing data
 
         Returns
-        -------
+        =======
         checkpoint_info: named_tuple
             An object with attributes `sampler_file`, `chain_file`, and
             `chain_template`. The first two give paths to where the sampler and
@@ -353,7 +349,7 @@ class Emcee(MCMCSampler):
         self.pos0 = self.sampler.chain[:, -1, :]
 
     def run_sampler(self):
-        tqdm = get_progress_bar()
+        from tqdm.auto import tqdm
         sampler_function_kwargs = self.sampler_function_kwargs
         iterations = sampler_function_kwargs.pop('iterations')
         iterations -= self._previous_iterations

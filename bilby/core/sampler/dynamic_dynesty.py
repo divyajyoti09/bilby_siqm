@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 
 import os
 import dill as pickle
@@ -22,7 +21,7 @@ class DynamicDynesty(Dynesty):
     we list commonly all kwargs and the bilby defaults.
 
     Parameters
-    ----------
+    ==========
     likelihood: likelihood.Likelihood
         A  object with a log_l method
     priors: bilby.core.prior.PriorDict, dict
@@ -42,7 +41,7 @@ class DynamicDynesty(Dynesty):
         only advisable for testing environments
 
     Other Parameters
-    ----------------
+    ------==========
     bound: {'none', 'single', 'multi', 'balls', 'cubes'}, ('multi')
         Method used to select new points
     sample: {'unif', 'rwalk', 'slice', 'rslice', 'hslice'}, ('rwalk')

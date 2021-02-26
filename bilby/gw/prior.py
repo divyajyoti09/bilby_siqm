@@ -40,7 +40,7 @@ def convert_to_flat_in_component_mass_prior(result, fraction=0.25):
     F(mc, q) -> G(m1, m2) is defined as J := m1^2 / mc
 
     Parameters
-    ----------
+    ==========
     result: bilby.core.result.Result
         The output result complete with priors and posteriors
     fraction: float [0, 1]
@@ -162,7 +162,7 @@ class Cosmological(Interped):
         Set either of the limits for redshift, luminosity, and comoving distances
 
         Parameters
-        ----------
+        ==========
         value: float
             Limit value in current class' parameter
         limit_dict: dict
@@ -298,7 +298,7 @@ class UniformInComponentsChirpMass(PowerLaw):
         prior is uniform in component masses.
 
         Parameters
-        ----------
+        ==========
         minimum : float
             The minimum of chirp mass
         maximum : float
@@ -340,7 +340,7 @@ class UniformInComponentsMassRatio(Prior):
         prior is uniform in component masses.
 
         Parameters
-        ----------
+        ==========
         minimum : float
             The minimum of mass ratio
         maximum : float
@@ -391,7 +391,7 @@ class AlignedSpin(Interped):
         This is an extension of e.g., (A7) of https://arxiv.org/abs/1805.10457.
 
         Parameters
-        ----------
+        ==========
         a_prior: Prior
             Prior distribution for spin magnitude
         z_prior: Prior
@@ -504,7 +504,7 @@ class BBHPriorDict(CBCPriorDict):
         """ Initialises a Prior set for Binary Black holes
 
         Parameters
-        ----------
+        ==========
         dictionary: dict, optional
             See superclass
         filename: str, optional
@@ -541,12 +541,12 @@ class BBHPriorDict(CBCPriorDict):
         - source-frame parameters
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary to convert
 
         Returns
-        -------
+        =======
         sample: dict
             Same as input
         """
@@ -562,14 +562,14 @@ class BBHPriorDict(CBCPriorDict):
         Already existing keys return True.
 
         Parameters
-        ----------
+        ==========
         key: str
             The key to test.
         disable_logging: bool, optional
             Disable logging in this function call. Default is False.
 
-        Return
-        ------
+        Returns
+        ======
         redundant: bool
             Whether the key is redundant or not
         """
@@ -612,7 +612,7 @@ class BNSPriorDict(CBCPriorDict):
         """ Initialises a Prior set for Binary Neutron Stars
 
         Parameters
-        ----------
+        ==========
         dictionary: dict, optional
             See superclass
         filename: str, optional
@@ -649,12 +649,12 @@ class BNSPriorDict(CBCPriorDict):
         - source-frame parameters
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary to convert
 
         Returns
-        -------
+        =======
         sample: dict
             Same as input
         """
@@ -751,7 +751,7 @@ class CalibrationPriorDict(PriorDict):
         """ Initialises a Prior set for Binary Black holes
 
         Parameters
-        ----------
+        ==========
         dictionary: dict, optional
             See superclass
         filename: str, optional
@@ -768,7 +768,7 @@ class CalibrationPriorDict(PriorDict):
         possible.
 
         Parameters
-        ----------
+        ==========
         outdir: str
             Output directory.
         label: str
@@ -786,12 +786,15 @@ class CalibrationPriorDict(PriorDict):
         """
         Load in the calibration envelope.
 
-        This is a text file with columns:
+        This is a text file with columns
+
+        ::
+
             frequency median-amplitude median-phase -1-sigma-amplitude
             -1-sigma-phase +1-sigma-amplitude +1-sigma-phase
 
         Parameters
-        ----------
+        ==========
         envelope_file: str
             Name of file to read in.
         minimum_frequency: float
@@ -801,10 +804,10 @@ class CalibrationPriorDict(PriorDict):
         n_nodes: int
             Number of nodes for the spline.
         label: str
-            Label for the names of the parameters, e.g., recalib_H1_
+            Label for the names of the parameters, e.g., `recalib_H1_`
 
         Returns
-        -------
+        =======
         prior: PriorDict
             Priors for the relevant parameters.
             This includes the frequencies of the nodes which are _not_ sampled.
@@ -861,7 +864,7 @@ class CalibrationPriorDict(PriorDict):
         This assumes Gaussian fluctuations about 0.
 
         Parameters
-        ----------
+        ==========
         amplitude_sigma: float
             Uncertainty in the amplitude.
         phase_sigma: float
@@ -873,10 +876,10 @@ class CalibrationPriorDict(PriorDict):
         n_nodes: int
             Number of nodes for the spline.
         label: str
-            Label for the names of the parameters, e.g., recalib_H1_
+            Label for the names of the parameters, e.g., `recalib_H1_`
 
         Returns
-        -------
+        =======
         prior: PriorDict
             Priors for the relevant parameters.
             This includes the frequencies of the nodes which are _not_ sampled.
@@ -930,7 +933,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
     distance distribution along a given line of sight.
 
     Parameters
-    ----------
+    ==========
 
     hp_file : file path to .fits file
         .fits file that containes the 2D or 3D Healpix Map
@@ -941,7 +944,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         if this is for a 3D map
 
     Returns
-    -------
+    =======
 
     PriorDist : `bilby.gw.prior.HealPixMapPriorDist`
         A JointPriorDist object to store the joint prior distribution according to passed healpix map
@@ -1018,14 +1021,14 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         two values (ra, dec) or 3 (ra, dec, dist) if distance is included
 
         Parameters
-        ----------
+        ==========
         samp : float, int
             must take in single value for pixel on unitcube to recale onto ra, dec (distance), for the map Prior
         kwargs : dict
             kwargs are all passed to _rescale() method
 
         Returns
-        -------
+        =======
         rescaled_sample : array_like
             sample to rescale onto the prior
         """
@@ -1055,12 +1058,12 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         given pixel or line of sight.
 
         Parameters
-        ----------
+        ==========
         pix_idx : int
             pixel index value to create the distribtuion for
 
         Returns
-        -------
+        =======
         None : None
             just updates these functions at new pixel values
         """
@@ -1085,12 +1088,12 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         static method to check if array is properlly normalized and if not to normalize it.
 
         Parameters
-        ----------
+        ==========
         array : array_like
             input array we want to renormalize if not already normalized
 
         Returns
-        -------
+        =======
         normed_array : array_like
             returns input array normalized
         """
@@ -1107,14 +1110,14 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         given line of sight
 
         Parameters
-        ----------
+        ==========
         size : int
             number of samples we want to draw
         kwargs : dict
             kwargs are all passed to be used
 
         Returns
-        -------
+        =======
         sample : array_like
             sample of ra, and dec (and distance if 3D=True)
         """
@@ -1140,13 +1143,13 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         the bounds
 
         Parameters
-        ----------
+        ==========
 
         pix : int
             integer for pixel to draw a distance from
 
         Returns
-        -------
+        =======
         dist : float
             sample drawn from the distance distribution at set pixel index
         """
@@ -1164,7 +1167,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         Recursive function to uniformly draw ra, and dec values that are located in the given pixel
 
         Parameters
-        ----------
+        ==========
         ra : float, int
             value drawn for rightascension
         dec : float, int
@@ -1173,7 +1176,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
             pixel index for given pixel we want to get ra, and dec from
 
         Returns
-        -------
+        =======
         ra_dec : tuple
             this returns a tuple of ra, and dec sampled uniformly that are in the pixel given
         """
@@ -1191,7 +1194,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         Method that checks if given rightacension and declination values are within the given pixel index and the bounds
 
         Parameters
-        ----------
+        ==========
         ra : float, int
             rightascension value to check
         dec : float, int
@@ -1200,7 +1203,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
             index for pixel we want to check in
 
         Returns
-        -------
+        =======
         bool :
             returns True if values inside pixel, False if not
         """
@@ -1216,7 +1219,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
         Overwrites the _lnprob method of BaseJoint Prior
 
         Parameters
-        ----------
+        ==========
         samp : array_like
             samples of ra, dec to evaluate the lnprob at
         lnprob : array_like
@@ -1225,7 +1228,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
             boolean array that flags samples that are out of the given bounds
 
         Returns
-        -------
+        =======
         lnprob : array_like
             lnprob values at each sample
         """

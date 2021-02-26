@@ -1,5 +1,4 @@
-from __future__ import absolute_import, print_function
-from ..utils import logger, get_progress_bar
+from ..utils import logger
 import numpy as np
 import os
 from .emcee import Emcee
@@ -13,8 +12,8 @@ class Kombine(Emcee):
     documentation for that class for further help. Under Other Parameters, we
     list commonly used kwargs and the bilby defaults.
 
-    Other Parameters
-    ----------------
+    Parameters
+    ==========
     nwalkers: int, (500)
         The number of walkers
     iterations: int, (100)
@@ -31,7 +30,6 @@ class Kombine(Emcee):
         autocorrelation time cannot be calculated
     burn_in_act: float (3.)
         The number of autocorrelation times to discard as burn-in
-
 
     """
 
@@ -141,7 +139,7 @@ class Kombine(Emcee):
                 logger.info("Kombine auto-burnin complete. Removing {} samples from chains".format(self.nburn))
                 self._set_pos0_for_resume()
 
-        tqdm = get_progress_bar()
+        from tqdm.auto import tqdm
         sampler_function_kwargs = self.sampler_function_kwargs
         iterations = sampler_function_kwargs.pop('iterations')
         iterations -= self._previous_iterations
