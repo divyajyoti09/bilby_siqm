@@ -301,7 +301,7 @@ def convert_to_lal_siqm_parameters(parameters):
     added_keys: list
         keys which are added to parameters during function call
     """
-    
+
     converted_parameters, added_keys =\
         convert_to_lal_binary_black_hole_parameters(parameters)
 
@@ -571,81 +571,6 @@ def dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(dQuadMon1, dQuadMon2):
 
     dQuadMonS = 0.5 * (dQuadMon1 + dQuadMon2)
     dQuadMonA = 0.5 * (dQuadMon1 - dQuadMon2)
-    return dQuadMonS, dQuadMonA
-
-
-
-
-
-def dquadmons_and_dquadmona_to_dquadmon1_and_dquadmon2(dQuadMonS, dQuadMonA):
-    """
-    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
-
-    Parameters
-    ----------
-    dQuadMon1: float
-        Spin-induced quadrupole parameter of the heavier object
-    dQuadMon2: float
-        Spin-induced quadrupole parameter of the lighter object
-
-    Return
-    ------
-    dQuadMonS: float
-        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    dQuadMonA: float
-        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    """
-
-    dQuadMon1 = (dQuadMonS + dQuadMonA)
-    dQuadMon2 = (dQuadMonS - dQuadMonA)
-    return dQuadMon1, dQuadMon2
-
-
-def dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(dQuadMon1, dQuadMon2):
-    """
-    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
-
-    Parameters
-    ----------
-    dQuadMon1: float
-        Spin-induced quadrupole parameter of the heavier object
-    dQuadMon2: float
-        Spin-induced quadrupole parameter of the lighter object
-
-    Return
-    ------
-    dQuadMonS: float
-        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    dQuadMonA: float
-        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    """
-
-    dQuadMonS = 0.5 * (dQuadMon1 + dQuadMon2)
-    dQuadMonA = 0.5 * (dQuadMon1 - dQuadMon2)
-    return dQuadMonS, dQuadMonA
-
-
-def dquadmon1_and_dquadmon2_to_dquadmons(dQuadMon1, dQuadMon2):
-    """
-    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
-
-    Parameters
-    ----------
-    dQuadMon1: float
-        Spin-induced quadrupole parameter of the heavier object
-    dQuadMon2: float
-        Spin-induced quadrupole parameter of the lighter object
-
-    Return
-    ------
-    dQuadMonS: float
-        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    dQuadMonA: float
-        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    """
-
-    dQuadMonS = 0.5 * (dQuadMon1 + dQuadMon2)
-    dQuadMonA = 0.0
     return dQuadMonS, dQuadMonA
 
 
