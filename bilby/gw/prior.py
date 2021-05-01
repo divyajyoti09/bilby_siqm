@@ -728,7 +728,7 @@ class BBHPriorDict(CBCPriorDict):
                 zip([2, 2, 1, 1, 1, 1, 2],
                     [mass_parameters, spin_azimuth_parameters,
                      spin_tilt_1_parameters, spin_tilt_2_parameters,
-                     inclination_parameters, distance_parameters, siqm_parameters_1]):
+                     inclination_parameters, distance_parameters, siqm_parameters]):
             if key in parameter_set:
                 if len(parameter_set.intersection(
                         sampling_parameters)) >= independent_parameters:
