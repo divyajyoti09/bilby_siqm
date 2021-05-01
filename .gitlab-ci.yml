@@ -188,7 +188,6 @@ pages:
 deploy_release:
   stage: deploy
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
-  variables:
     TWINE_USERNAME: $PYPI_USERNAME
     TWINE_PASSWORD: $PYPI_PASSWORD
   before_script:
