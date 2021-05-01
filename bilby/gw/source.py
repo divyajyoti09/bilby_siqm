@@ -231,6 +231,8 @@ def lal_eccentric_binary_black_hole_no_spins(
           However, waveform_arguments =
           dict(waveform_approximant='IMRPhenomXHM', mode_array=[[2,2],[4,-4]])
           returns the 22 and 4-4 of IMRPhenomXHM.
+=======
+>>>>>>> f806e08b... wf error handling
 
     Returns
     =======
@@ -606,3 +608,4 @@ def supernova_pca_model(
                          pc_coeff4 * pc4 + pc_coeff5 * pc5)
 
     return {'plus': h_plus, 'cross': h_cross}
+
