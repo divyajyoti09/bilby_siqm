@@ -45,10 +45,7 @@ basic-3.7:
 # test example on python 3.7
 python-3.7:
   stage: test
-<<<<<<< HEAD
   needs: ["basic-3.7", "precommits-py3.7"]
-=======
->>>>>>> b1a37805... Update the CI to run on auto-built images
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - python -m pip install .
@@ -91,10 +88,7 @@ docs:
 # test example on python 3.8
 python-3.8:
   stage: test
-<<<<<<< HEAD
   needs: ["basic-3.7", "precommits-py3.7"]
-=======
->>>>>>> b1a37805... Update the CI to run on auto-built images
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python38
   script:
     - python -m pip install .
@@ -104,10 +98,7 @@ python-3.8:
 # test example on python 3.6
 python-3.6:
   stage: test
-<<<<<<< HEAD
   needs: ["basic-3.7", "precommits-py3.7"]
-=======
->>>>>>> b1a37805... Update the CI to run on auto-built images
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python36
   script:
     - python -m pip install .
@@ -117,10 +108,7 @@ python-3.6:
 # test samplers on python 3.7
 python-3.7-samplers:
   stage: test
-<<<<<<< HEAD
   needs: ["basic-3.7", "precommits-py3.7"]
-=======
->>>>>>> b1a37805... Update the CI to run on auto-built images
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - python -m pip install .
@@ -131,10 +119,7 @@ python-3.7-samplers:
 # test samplers on python 3.6
 python-3.6-samplers:
   stage: test
-<<<<<<< HEAD
   needs: ["basic-3.7", "precommits-py3.7"]
-=======
->>>>>>> b1a37805... Update the CI to run on auto-built images
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python36
   script:
     - python -m pip install .
@@ -143,11 +128,7 @@ python-3.6-samplers:
 
 # Test containers are up to date
 containers:
-<<<<<<< HEAD
   stage: initial
-=======
-  stage: test
->>>>>>> b1a37805... Update the CI to run on auto-built images
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - cd containers
@@ -181,11 +162,7 @@ plotting:
     - pytest test/gw/plot_test.py
 
 authors:
-<<<<<<< HEAD
   stage: initial
-=======
-  stage: test
->>>>>>> b1a37805... Update the CI to run on auto-built images
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - python test/check_author_list.py
@@ -211,6 +188,7 @@ pages:
 deploy_release:
   stage: deploy
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
+  variables:
     TWINE_USERNAME: $PYPI_USERNAME
     TWINE_PASSWORD: $PYPI_PASSWORD
   before_script:
@@ -224,7 +202,6 @@ deploy_release:
 
 precommits-py3.7:
   stage: initial
-  stage: test
   image: quay.io/bilbydev/v2-dockerfile-test-suite-python37
   script:
     - source activate python37
