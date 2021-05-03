@@ -3,9 +3,12 @@ import os
 from collections import OrderedDict, namedtuple
 from copy import copy
 from distutils.version import LooseVersion
+from importlib import import_module
 from itertools import product
+from tqdm import tqdm
 
 import corner
+import h5py
 import json
 import matplotlib
 import matplotlib.pyplot as plt
@@ -22,7 +25,9 @@ from .utils import (
     latex_plot_format, safe_save_figure,
     BilbyJsonEncoder, load_json,
     move_old_file, get_version_information,
-    decode_bilby_json,
+    decode_bilby_json, docstring,
+    recursively_save_dict_contents_to_group,
+    recursively_load_dict_contents_from_group,
 )
 from .prior import Prior, PriorDict, DeltaFunction
 
@@ -88,6 +93,8 @@ def read_in_result(filename=None, outdir=None, label=None, extension='json', gzi
         result = Result.from_json(filename=filename)
     elif ('hdf5' in extension) or ('h5' in extension):
         result = Result.from_hdf5(filename=filename)
+    elif ("pkl" in extension) or ("pickle" in extension):
+        result = Result.from_pickle(filename=filename)
     elif extension is None:
         raise ValueError("No filetype extension provided")
     else:
@@ -97,7 +104,7 @@ def read_in_result(filename=None, outdir=None, label=None, extension='json', gzi
 
 def get_weights_for_reweighting(
         result, new_likelihood=None, new_prior=None, old_likelihood=None,
-        old_prior=None):
+        old_prior=None, resume_file=None, n_checkpoint=5000):
     """ Calculate the weights for reweight()
 
     See bilby.core.result.reweight() for help with the inputs
@@ -107,20 +114,39 @@ def get_weights_for_reweighting(
     ln_weights: array
         An array of the natural-log weights
     new_log_likelihood_array: array
-        An array of the natural-log likelihoods
+        An array of the natural-log likelihoods from the new likelihood
     new_log_prior_array: array
         An array of the natural-log priors
-
+    old_log_likelihood_array: array
+        An array of the natural-log likelihoods from the old likelihood
+    old_log_prior_array: array
+        An array of the natural-log priors
+    resume_file: string
+        filepath for the resume file which stores the weights
+    n_checkpoint: int
+        Number of samples to reweight before writing a resume file
     """
-    nposterior = len(result.posterior)
-    old_log_likelihood_array = np.zeros(nposterior)
-    old_log_prior_array = np.zeros(nposterior)
-    new_log_likelihood_array = np.zeros(nposterior)
-    new_log_prior_array = np.zeros(nposterior)
 
-    for ii, sample in result.posterior.iterrows():
+    nposterior = len(result.posterior)
+
+    if (resume_file is not None) and os.path.exists(resume_file):
+        old_log_likelihood_array, old_log_prior_array, new_log_likelihood_array, new_log_prior_array = \
+            np.genfromtxt(resume_file)
+
+        starting_index = np.argmin(np.abs(old_log_likelihood_array))
+        logger.info(f'Checkpoint resuming from {starting_index}.')
+
+    else:
+        old_log_likelihood_array = np.zeros(nposterior)
+        old_log_prior_array = np.zeros(nposterior)
+        new_log_likelihood_array = np.zeros(nposterior)
+        new_log_prior_array = np.zeros(nposterior)
+
+        starting_index = 0
+
+    for ii, sample in tqdm(result.posterior.iloc[starting_index:].iterrows()):
         # Convert sample to dictionary
-        par_sample = {key: sample[key] for key in result.search_parameter_keys}
+        par_sample = {key: sample[key] for key in result.posterior}
 
         if old_likelihood is not None:
             old_likelihood.parameters.update(par_sample)
@@ -146,10 +172,17 @@ def get_weights_for_reweighting(
             # Don't perform prior reweighting (i.e. prior isn't updated)
             new_log_prior_array[ii] = old_log_prior_array[ii]
 
+        if (ii % (n_checkpoint) == 0) and (resume_file is not None):
+            checkpointed_index = np.argmin(np.abs(old_log_likelihood_array))
+            logger.info(f'Checkpointing with {checkpointed_index} samples')
+            np.savetxt(
+                resume_file,
+                [old_log_likelihood_array, old_log_prior_array, new_log_likelihood_array, new_log_prior_array])
+
     ln_weights = (
         new_log_likelihood_array + new_log_prior_array - old_log_likelihood_array - old_log_prior_array)
 
-    return ln_weights, new_log_likelihood_array, new_log_prior_array
+    return ln_weights, new_log_likelihood_array, new_log_prior_array, old_log_likelihood_array, old_log_prior_array
 
 
 def rejection_sample(posterior, weights):
@@ -173,7 +206,9 @@ def rejection_sample(posterior, weights):
 
 
 def reweight(result, label=None, new_likelihood=None, new_prior=None,
-             old_likelihood=None, old_prior=None):
+             old_likelihood=None, old_prior=None, conversion_function=None, npool=1,
+             verbose_output=False, resume_file=None, n_checkpoint=5000,
+             use_nested_samples=False):
     """ Reweight a result to a new likelihood/prior using rejection sampling
 
     Parameters
@@ -192,41 +227,92 @@ def reweight(result, label=None, new_likelihood=None, new_prior=None,
     old_prior: bilby.core.prior.PriorDict, (optional)
         If given, calculate the old prior from this object. If not given,
         the values stored in the posterior are used.
+    conversion_function: function, optional
+        Function which adds in extra parameters to the data frame,
+        should take the data_frame, likelihood and prior as arguments.
+    npool: int, optional
+        Number of threads with which to execute the conversion function
+    verbose_output: bool, optional
+        Flag determining whether the weight array and associated prior and
+        likelihood evaluations are output as well as the result file
+    resume_file: string, optional
+        filepath for the resume file which stores the weights
+    n_checkpoint: int, optional
+        Number of samples to reweight before writing a resume file
+    use_nested_samples: bool, optional
+        If true reweight the nested samples instead. This can greatly improve reweighting efficiency, especially if the
+        target distribution has support beyond the proposal posterior distribution.
 
     Returns
     =======
     result: bilby.core.result.Result
         A copy of the result object with a reweighted posterior
+    new_log_likelihood_array: array, optional (if verbose_output=True)
+        An array of the natural-log likelihoods from the new likelihood
+    new_log_prior_array: array, optional (if verbose_output=True)
+        An array of the natural-log priors from the new likelihood
+    old_log_likelihood_array: array, optional (if verbose_output=True)
+        An array of the natural-log likelihoods from the old likelihood
+    old_log_prior_array: array, optional (if verbose_output=True)
+        An array of the natural-log priors from the old likelihood
 
     """
 
     result = copy(result)
+
+    if use_nested_samples:
+        result.posterior = result.nested_samples
+
     nposterior = len(result.posterior)
     logger.info("Reweighting posterior with {} samples".format(nposterior))
 
-    ln_weights, new_log_likelihood_array, new_log_prior_array = get_weights_for_reweighting(
-        result, new_likelihood=new_likelihood, new_prior=new_prior,
-        old_likelihood=old_likelihood, old_prior=old_prior)
+    ln_weights, new_log_likelihood_array, new_log_prior_array, old_log_likelihood_array, old_log_prior_array =\
+        get_weights_for_reweighting(
+            result, new_likelihood=new_likelihood, new_prior=new_prior,
+            old_likelihood=old_likelihood, old_prior=old_prior,
+            resume_file=resume_file, n_checkpoint=n_checkpoint)
+
+    weights = np.exp(ln_weights)
+
+    if use_nested_samples:
+        weights *= result.posterior['weights']
 
     # Overwrite the likelihood and prior evaluations
     result.posterior["log_likelihood"] = new_log_likelihood_array
     result.posterior["log_prior"] = new_log_prior_array
 
-    weights = np.exp(ln_weights)
-
     result.posterior = rejection_sample(result.posterior, weights=weights)
+    result.posterior = result.posterior.reset_index(drop=True)
     logger.info("Rejection sampling resulted in {} samples".format(len(result.posterior)))
     result.meta_data["reweighted_using_rejection_sampling"] = True
 
-    result.log_evidence += logsumexp(ln_weights) - np.log(nposterior)
-    result.priors = new_prior
+    if use_nested_samples:
+        result.log_evidence += np.log(np.sum(weights))
+    else:
+        result.log_evidence += logsumexp(ln_weights) - np.log(nposterior)
+
+    if new_prior is not None:
+        for key, prior in new_prior.items():
+            result.priors[key] = prior
+
+    if conversion_function is not None:
+        data_frame = result.posterior
+        if "npool" in inspect.getargspec(conversion_function).args:
+            data_frame = conversion_function(data_frame, new_likelihood, new_prior, npool=npool)
+        else:
+            data_frame = conversion_function(data_frame, new_likelihood, new_prior)
+        result.posterior = data_frame
 
     if label:
         result.label = label
     else:
         result.label += "_reweighted"
 
-    return result
+    if verbose_output:
+        return result, weights, new_log_likelihood_array, \
+            new_log_prior_array, old_log_likelihood_array, old_log_prior_array
+    else:
+        return result
 
 
 class Result(object):
@@ -336,8 +422,8 @@ class Result(object):
         self._kde = None
 
     @classmethod
-    def from_hdf5(cls, filename=None, outdir=None, label=None):
-        """ Read in a saved .h5 data file
+    def _from_hdf5_old(cls, filename=None, outdir=None, label=None):
+        """ Read in a saved .h5 data file in the old format.
 
         Parameters
         ==========
@@ -374,7 +460,10 @@ class Result(object):
                         priordict = PriorDict()
                         for key, value in dictionary["priors"].items():
                             if key not in ["__module__", "__name__", "__prior_dict__"]:
-                                priordict[key] = decode_bilby_json(value)
+                                try:
+                                    priordict[key] = decode_bilby_json(value)
+                                except AttributeError:
+                                    continue
                         dictionary["priors"] = priordict
                     except Exception as e:
                         raise IOError(
@@ -391,27 +480,62 @@ class Result(object):
         else:
             raise IOError("No result '{}' found".format(filename))
 
+    _load_doctstring = """ Read in a saved .{format} data file
+
+    Parameters
+    ==========
+    filename: str
+        If given, try to load from this filename
+    outdir, label: str
+        If given, use the default naming convention for saved results file
+
+    Returns
+    =======
+    result: bilby.core.result.Result
+
+    Raises
+    =======
+    ValueError: If no filename is given and either outdir or label is None
+                If no bilby.core.result.Result is found in the path
+
+    """
+
+    @staticmethod
+    @docstring(_load_doctstring.format(format="pickle"))
+    def from_pickle(filename=None, outdir=None, label=None):
+        filename = _determine_file_name(filename, outdir, label, 'hdf5', False)
+        import dill
+        with open(filename, "rb") as ff:
+            return dill.load(ff)
+
     @classmethod
+    @docstring(_load_doctstring.format(format="hdf5"))
+    def from_hdf5(cls, filename=None, outdir=None, label=None):
+        filename = _determine_file_name(filename, outdir, label, 'hdf5', False)
+        with h5py.File(filename, "r") as ff:
+            data = recursively_load_dict_contents_from_group(ff, '/')
+        if list(data.keys()) == ["data"]:
+            return cls._from_hdf5_old(filename=filename)
+        data["posterior"] = pd.DataFrame(data["posterior"])
+        data["priors"] = PriorDict._get_from_json_dict(
+            json.loads(data["priors"], object_hook=decode_bilby_json)
+        )
+        try:
+            cls = getattr(import_module(data['__module__']), data['__name__'])
+        except ImportError:
+            logger.debug(
+                "Module {}.{} not found".format(data["__module__"], data["__name__"])
+            )
+        except KeyError:
+            logger.debug("No class specified, using base Result.")
+        for key in ["__module__", "__name__"]:
+            if key in data:
+                del data[key]
+        return cls(**data)
+
+    @classmethod
+    @docstring(_load_doctstring.format(format="json"))
     def from_json(cls, filename=None, outdir=None, label=None, gzip=False):
-        """ Read in a saved .json data file
-
-        Parameters
-        ==========
-        filename: str
-            If given, try to load from this filename
-        outdir, label: str
-            If given, use the default naming convention for saved results file
-
-        Returns
-        =======
-        result: bilby.core.result.Result
-
-        Raises
-        =======
-        ValueError: If no filename is given and either outdir or label is None
-                    If no bilby.core.result.Result is found in the path
-
-        """
         filename = _determine_file_name(filename, outdir, label, 'json', gzip)
 
         if os.path.isfile(filename):
@@ -592,7 +716,10 @@ class Result(object):
     def save_to_file(self, filename=None, overwrite=False, outdir=None,
                      extension='json', gzip=False):
         """
-        Writes the Result to a json or deepdish h5 file
+
+        Writes the Result to a file.
+
+        Supported formats are: `json`, `hdf5`, `arviz`, `pickle`
 
         Parameters
         ==========
@@ -631,8 +758,8 @@ class Result(object):
 
         try:
             # convert priors to JSON dictionary for both JSON and hdf5 files
-            dictionary["priors"] = dictionary["priors"]._get_json_dict()
             if extension == 'json':
+                dictionary["priors"] = dictionary["priors"]._get_json_dict()
                 if gzip:
                     import gzip
                     # encode to a string
@@ -643,16 +770,25 @@ class Result(object):
                     with open(filename, 'w') as file:
                         json.dump(dictionary, file, indent=2, cls=BilbyJsonEncoder)
             elif extension == 'hdf5':
-                import deepdish
-                for key in dictionary:
-                    if isinstance(dictionary[key], pd.DataFrame):
-                        dictionary[key] = dictionary[key].to_dict()
-                deepdish.io.save(filename, dictionary)
+                dictionary["__module__"] = self.__module__
+                dictionary["__name__"] = self.__class__.__name__
+                with h5py.File(filename, 'w') as h5file:
+                    recursively_save_dict_contents_to_group(h5file, '/', dictionary)
+            elif extension == 'pkl':
+                import dill
+                with open(filename, "wb") as ff:
+                    dill.dump(self, ff)
             else:
                 raise ValueError("Extension type {} not understood".format(extension))
         except Exception as e:
-            logger.error("\n\n Saving the data has failed with the "
-                         "following message:\n {} \n\n".format(e))
+            import dill
+            filename = ".".join(filename.split(".")[:-1]) + ".pkl"
+            with open(filename, "wb") as ff:
+                dill.dump(self, ff)
+            logger.error(
+                "\n\nSaving the data has failed with the following message:\n"
+                "{}\nData has been dumped to {}.\n\n".format(e, filename)
+            )
 
     def save_posterior_samples(self, filename=None, outdir=None, label=None):
         """ Saves posterior samples to a file
@@ -1317,7 +1453,7 @@ class Result(object):
                     self.prior_values[key]\
                         = priors[key].prob(self.posterior[key].values)
 
-    def get_all_injection_credible_levels(self, keys=None):
+    def get_all_injection_credible_levels(self, keys=None, weights=None):
         """
         Get credible levels for all parameters
 
@@ -1326,6 +1462,10 @@ class Result(object):
         keys: list, optional
             A list of keys for which return the credible levels, if None,
             defaults to search_parameter_keys
+        weights: array, optional
+            A list of weights for the posterior samples to calculate a set of
+            weighted credible intervals.
+            If None, assumes equal weights between samples.
 
         Returns
         =======
@@ -1337,12 +1477,12 @@ class Result(object):
         if self.injection_parameters is None:
             raise(TypeError, "Result object has no 'injection_parameters'. "
                              "Cannot compute credible levels.")
-        credible_levels = {key: self.get_injection_credible_level(key)
+        credible_levels = {key: self.get_injection_credible_level(key, weights=weights)
                            for key in keys
                            if isinstance(self.injection_parameters.get(key, None), float)}
         return credible_levels
 
-    def get_injection_credible_level(self, parameter):
+    def get_injection_credible_level(self, parameter, weights=None):
         """
         Get the credible level of the injected parameter
 
@@ -1352,6 +1492,11 @@ class Result(object):
         ==========
         parameter: str
             Parameter to get credible level for
+        weights: array, optional
+            A list of weights for the posterior samples to calculate a
+            weighted credible interval.
+            If None, assumes equal weights between samples.
+
         Returns
         =======
         float: credible level
@@ -1359,11 +1504,15 @@ class Result(object):
         if self.injection_parameters is None:
             raise(TypeError, "Result object has no 'injection_parameters'. "
                              "Cannot copmute credible levels.")
+
+        if weights is None:
+            weights = np.ones(len(self.posterior))
+
         if parameter in self.posterior and\
                 parameter in self.injection_parameters:
             credible_level =\
-                sum(self.posterior[parameter].values <
-                    self.injection_parameters[parameter]) / len(self.posterior)
+                sum(np.array(self.posterior[parameter].values <
+                    self.injection_parameters[parameter]) * weights) / (sum(weights))
             return credible_level
         else:
             return np.nan
@@ -1793,7 +1942,7 @@ def plot_multiple(results, filename=None, labels=None, colours=None,
 @latex_plot_format
 def make_pp_plot(results, filename=None, save=True, confidence_interval=[0.68, 0.95, 0.997],
                  lines=None, legend_fontsize='x-small', keys=None, title=True,
-                 confidence_interval_alpha=0.1,
+                 confidence_interval_alpha=0.1, weight_list=None,
                  **kwargs):
     """
     Make a P-P plot for a set of runs with injected signals.
@@ -1817,6 +1966,8 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=[0.68, 0
         A list of keys to use, if None defaults to search_parameter_keys
     confidence_interval_alpha: float, list, optional
         The transparency for the background condifence interval
+    weight_list: list, optional
+        List of the weight arrays for each set of posterior samples.
     kwargs:
         Additional kwargs to pass to matplotlib.pyplot.plot
 
@@ -1830,10 +1981,14 @@ def make_pp_plot(results, filename=None, save=True, confidence_interval=[0.68, 0
     if keys is None:
         keys = results[0].search_parameter_keys
 
+    if weight_list is None:
+        weight_list = [None] * len(results)
+
     credible_levels = pd.DataFrame()
-    for result in results:
+    for i, result in enumerate(results):
         credible_levels = credible_levels.append(
-            result.get_all_injection_credible_levels(keys), ignore_index=True)
+            result.get_all_injection_credible_levels(keys, weights=weight_list[i]),
+            ignore_index=True)
 
     if lines is None:
         colors = ["C{}".format(i) for i in range(8)]
