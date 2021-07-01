@@ -44,7 +44,7 @@ waveform_arguments = dict(waveform_approximant='IMRPhenomPv2_NRTidal',
 # Create the waveform_generator using a LAL Binary Neutron Star source function
 waveform_generator = bilby.gw.WaveformGenerator(
     duration=duration, sampling_frequency=sampling_frequency,
-    frequency_domain_source_model=bilby.gw.source.lal_binary_neutron_star,
+    frequency_domain_source_model=bilby.gw.source.lal_binary_neutron_star_NEW,
     parameter_conversion=bilby.gw.conversion.convert_to_lal_binary_neutron_star_parameters,
     waveform_arguments=waveform_arguments)
 
