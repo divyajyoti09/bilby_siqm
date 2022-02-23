@@ -390,7 +390,7 @@ def lal_binary_neutron_star(
 def dquadmon_from_lambda(xx):
     prefact1 = 0.61
     prefact2 = 0.3
-    dQuadMon = prefact1 + prefact2 * np.log(xx)
+    dQuadMon = np.exp(prefact1 + prefact2 * np.log(xx))
     return dQuadMon
 
 def lal_binary_neutron_star_NEW(
