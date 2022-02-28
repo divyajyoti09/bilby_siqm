@@ -823,12 +823,12 @@ class BBHPriorDict(CBCPriorDict):
         spin_azimuth_parameters = {'phi_1', 'phi_2', 'phi_12', 'phi_jl'}
         inclination_parameters = {'theta_jn', 'cos_theta_jn'}
         distance_parameters = {'luminosity_distance', 'comoving_distance', 'redshift'}
-        siqm_parameters_1 = {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
+        siqm_parameters = {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
         for independent_parameters, parameter_set in \
                 zip([2, 2, 1, 1, 1, 1, 2],
                     [mass_parameters, spin_azimuth_parameters,
                      spin_tilt_1_parameters, spin_tilt_2_parameters,
-                     inclination_parameters, distance_parameters, siqm_parameters_1]):
+                     inclination_parameters, distance_parameters, siqm_parameters]):
             if key in parameter_set:
                 if len(parameter_set.intersection(
                         sampling_parameters)) >= independent_parameters:
