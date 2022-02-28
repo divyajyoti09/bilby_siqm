@@ -242,8 +242,6 @@ def lal_eccentric_binary_black_hole_no_spins(
         frequency_array=frequency_array, mass_1=mass_1, mass_2=mass_2,
         luminosity_distance=luminosity_distance, theta_jn=theta_jn, phase=phase,
         eccentricity=eccentricity, **waveform_kwargs)
-
-
 def _base_lal_cbc_fd_waveform(
         frequency_array, mass_1, mass_2, luminosity_distance, theta_jn, phase,
         a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0, phi_12=0.0, phi_jl=0.0,
@@ -414,6 +412,8 @@ def _base_lal_cbc_fd_waveform(
         h_cross[frequency_bounds] *= time_shift
 
     return dict(plus=h_plus, cross=h_cross)
+
+
 
 
 def binary_black_hole_roq(
@@ -884,7 +884,6 @@ def supernova_pca_model(
                          pc_coeff4 * pc4 + pc_coeff5 * pc5)
 
     return {'plus': h_plus, 'cross': h_cross}
-
 
 precession_only = {
     "tilt_1", "tilt_2", "phi_12", "phi_jl", "chi_1_in_plane", "chi_2_in_plane",
