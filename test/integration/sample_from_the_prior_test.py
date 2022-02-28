@@ -40,7 +40,7 @@ class Test(unittest.TestCase):
         duration = 4.0
         sampling_frequency = 2048.0
         label = "full_15_parameters"
-        np.random.seed(8817020)
+        np.random.seed(8817021)
 
         waveform_arguments = dict(
             waveform_approximant="IMRPhenomPv2",
@@ -90,10 +90,11 @@ class Test(unittest.TestCase):
             likelihood=likelihood,
             priors=priors,
             sampler="dynesty",
-            npoints=1000,
-            walks=100,
+            nlive=1000,
+            nact=10,
             outdir=self.outdir,
             label=label,
+            save=False
         )
         pvalues = [
             ks_2samp_wrapper(

@@ -1,7 +1,7 @@
 import unittest
+from unittest.mock import MagicMock
 
 import numpy as np
-from mock import MagicMock
 
 import bilby
 
@@ -34,7 +34,7 @@ class TestDynesty(unittest.TestCase):
             periodic=None,
             reflective=None,
             verbose=True,
-            check_point_delta_t=600,
+            check_point_delta_t=1800,
             nlive=1000,
             first_update=None,
             npdim=None,
@@ -66,6 +66,7 @@ class TestDynesty(unittest.TestCase):
             n_effective=None,
             maxmcmc=5000,
             nact=5,
+            print_method="tqdm",
         )
         self.sampler.kwargs[
             "print_func"
@@ -90,7 +91,7 @@ class TestDynesty(unittest.TestCase):
             periodic=[],
             reflective=[],
             verbose=True,
-            check_point_delta_t=600,
+            check_point_delta_t=1800,
             nlive=1000,
             first_update=None,
             npdim=None,
@@ -122,6 +123,7 @@ class TestDynesty(unittest.TestCase):
             n_effective=None,
             maxmcmc=5000,
             nact=5,
+            print_method="tqdm",
         )
 
         for equiv in bilby.core.sampler.base_sampler.NestedSampler.npoints_equiv_kwargs:

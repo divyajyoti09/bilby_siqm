@@ -14,7 +14,7 @@ Bruce Edelman
 Carl-Johan Haster
 Cecilio Garcia-Quiros
 Charlie Hoy
-Christopher Berry
+Christopher Philip Luke Berry
 Christos Karathanasis
 Colm Talbot
 Daniel Williams
@@ -27,13 +27,18 @@ Gregory Ashton
 Hector Estelles
 Ignacio Magaña Hernandez
 Isobel Marguarethe Romero-Shaw
+Jack Heinzel
 Jade Powell
 James A Clark
+Jeremy G Baier
 John Veitch
+Joshua Brandt
+Josh Willis
 Katerina Chatziioannou
 Kaylee de Soto
 Khun Sang Phukon
 Kshipraa Athar
+Leslie Wade
 Liting Xiao
 Maite Mateu-Lucena
 Marc Arene
@@ -49,10 +54,12 @@ Moritz Huebner
 Nicola De Lillo
 Nikhil Sarin
 Nirban Bose
+Olivia Wilk
 Paul Easter
 Paul Lasky
 Philip Relton
 Rhys Green
+Rico Lo
 Roberto Cotesta
 Rory Smith
 S. H. Oh
@@ -64,8 +71,10 @@ Sharan Banagiri
 Shichao Wu
 Simon Stevenson
 Soichiro Morisaki
+Stephen R Green
 Sumeet Kulkarni
 Sylvia Biscoveanu
 Tathagata Ghosh
 Virginia d'Emilio
 Vivien Raymond
+Ka-Lok Lo

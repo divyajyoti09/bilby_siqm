@@ -1,6 +1,3 @@
-from __future__ import absolute_import, print_function
-
-from collections import OrderedDict
 from distutils.version import StrictVersion
 
 import numpy as np
@@ -21,8 +18,8 @@ class Pymc3(MCMCSampler):
     class for further help. Under Other Parameters, we list commonly used
     kwargs and the bilby, or where appropriate, PyMC3 defaults.
 
-    Other Parameters
-    ----------------
+    Parameters
+    ==========
     draws: int, (1000)
         The number of sample draws from the posterior per chain.
     chains: int, (2)
@@ -421,7 +418,7 @@ class Pymc3(MCMCSampler):
             # so check for this
             if self.step_method is None:
                 pass
-            elif isinstance(self.step_method, (dict, OrderedDict)):
+            elif isinstance(self.step_method, dict):
                 for key in self.step_method:
                     if key not in self._search_parameter_keys:
                         raise ValueError("Setting a step method for an unknown parameter '{}'".format(key))
@@ -499,7 +496,7 @@ class Pymc3(MCMCSampler):
         methodslist = []
 
         # set the step method
-        if isinstance(self.step_method, (dict, OrderedDict)):
+        if isinstance(self.step_method, dict):
             # create list of step methods (any not given will default to NUTS)
             self.kwargs['step'] = []
             with self.pymc3_model:
@@ -552,23 +549,13 @@ class Pymc3(MCMCSampler):
 
         with self.pymc3_model:
             # perform the sampling
-            trace = pymc3.sample(**self.kwargs)
+            trace = pymc3.sample(**self.kwargs, return_inferencedata=True)
 
-        nparams = len([key for key in self.priors.keys() if not isinstance(self.priors[key], DeltaFunction)])
-        nsamples = len(trace) * self.chains
-
-        self.result.samples = np.zeros((nsamples, nparams))
-        count = 0
-        for key in self.priors.keys():
-            if not isinstance(self.priors[key], DeltaFunction):  # ignore DeltaFunction variables
-                if not isinstance(self.priors[key], MultivariateGaussian):
-                    self.result.samples[:, count] = trace[key]
-                else:
-                    # get multivariate Gaussian samples
-                    priorset = self.multivariate_normal_sets[key]['set']
-                    index = self.multivariate_normal_sets[key]['index']
-                    self.result.samples[:, count] = trace[priorset][:, index]
-                count += 1
+        posterior = trace.posterior.to_dataframe().reset_index()
+        self.result.samples = posterior[self.search_parameter_keys]
+        self.result.log_likelihood_evaluations = np.sum(
+            trace.log_likelihood.likelihood.values, axis=-1
+        ).flatten()
         self.result.sampler_output = np.nan
         self.calculate_autocorrelation(self.result.samples)
         self.result.log_evidence = np.nan
@@ -618,7 +605,7 @@ class Pymc3(MCMCSampler):
 
         self.setup_prior_mapping()
 
-        self.pymc3_priors = OrderedDict()
+        self.pymc3_priors = dict()
         pymc3, STEP_METHODS, floatX = self._import_external_sampler()
 
         # initialise a dictionary of multivariate Gaussian parameters
@@ -832,7 +819,7 @@ class Pymc3(MCMCSampler):
                 # set theano Op - pass _search_parameter_keys, which only contains non-fixed variables
                 logl = LogLike(self._search_parameter_keys, self.likelihood, self.pymc3_priors)
 
-                parameters = OrderedDict()
+                parameters = dict()
                 for key in self._search_parameter_keys:
                     try:
                         parameters[key] = self.pymc3_priors[key]

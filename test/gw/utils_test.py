@@ -3,9 +3,10 @@ import os
 from shutil import rmtree
 
 import numpy as np
-import gwpy
 import lal
 import lalsimulation as lalsim
+from gwpy.timeseries import TimeSeries
+from gwpy.detector import Channel
 from scipy.stats import ks_2samp
 
 import bilby
@@ -102,21 +103,13 @@ class TestGWUtils(unittest.TestCase):
     def test_get_event_time(self):
         events = [
             "GW150914",
-            "GW151012",
-            "GW151226",
             "GW170104",
-            "GW170608",
-            "GW170729",
-            "GW170809",
-            "GW170814",
-            "GW170817",
-            "GW170818",
-            "GW170823",
         ]
         for event in events:
             self.assertTrue(isinstance(gwutils.get_event_time(event), float))
 
-        self.assertTrue(gwutils.get_event_time("GW010290") is None)
+        with self.assertRaises(ValueError):
+            gwutils.get_event_time("GW010290")
 
     def test_read_frame_file(self):
         start_time = 0
@@ -125,8 +118,8 @@ class TestGWUtils(unittest.TestCase):
         N = 100
         times = np.linspace(start_time, end_time, N)
         data = np.random.normal(0, 1, N)
-        ts = gwpy.timeseries.TimeSeries(data=data, times=times, t0=0)
-        ts.channel = gwpy.detector.Channel(channel)
+        ts = TimeSeries(data=data, times=times, t0=0)
+        ts.channel = Channel(channel)
         ts.name = channel
         filename = os.path.join(self.outdir, "test.gwf")
         ts.write(filename, format="gwf")
@@ -158,7 +151,7 @@ class TestGWUtils(unittest.TestCase):
         )
         self.assertTrue(np.all(strain.value == data[:-1]))
 
-        ts = gwpy.timeseries.TimeSeries(data=data, times=times, t0=0)
+        ts = TimeSeries(data=data, times=times, t0=0)
         ts.name = "NOT-A-KNOWN-CHANNEL"
         ts.write(filename, format="gwf")
         strain = gwutils.read_frame_file(filename, start_time=None, end_time=None)

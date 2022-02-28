@@ -1,10 +1,15 @@
 import unittest
+from unittest.mock import MagicMock
 
-from mock import MagicMock
+import pytest
 
 import bilby
 
 
+@pytest.mark.xfail(
+    raises=AttributeError,
+    reason="Dependency issue with pymc3 causes attribute error on import",
+)
 class TestPyMC3(unittest.TestCase):
     def setUp(self):
         self.likelihood = MagicMock()

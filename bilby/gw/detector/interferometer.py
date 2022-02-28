@@ -1,23 +1,14 @@
 import os
-import sys
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from ...core import utils
-from ...core.utils import logger
+from ...core.utils import docstring, logger, PropertyAccessor
 from .. import utils as gwutils
-from ..utils import PropertyAccessor
 from .calibration import Recalibrate
 from .geometry import InterferometerGeometry
 from .strain_data import InterferometerStrainData
-
-try:
-    import gwpy
-    import gwpy.signal
-except ImportError:
-    logger.debug("You do not have gwpy installed currently. You will "
-                 " not be able to use some of the prebuilt functions.")
+from ..conversion import generate_all_bbh_parameters
 
 
 class Interferometer(object):
@@ -55,7 +46,7 @@ class Interferometer(object):
         Instantiate an Interferometer object.
 
         Parameters
-        ----------
+        ==========
         name: str
             Interferometer name, e.g., H1.
         power_spectral_density: bilby.gw.detector.PowerSpectralDensity
@@ -120,7 +111,7 @@ class Interferometer(object):
         """ Set the `Interferometer.strain_data` from a gwpy TimeSeries
 
         Parameters
-        ----------
+        ==========
         time_series: gwpy.timeseries.timeseries.TimeSeries
             The data to set.
 
@@ -133,7 +124,7 @@ class Interferometer(object):
         """ Set the `Interferometer.strain_data` from a numpy array
 
         Parameters
-        ----------
+        ==========
         frequency_domain_strain: array_like
             The data to set.
         sampling_frequency: float
@@ -161,7 +152,7 @@ class Interferometer(object):
         `bilby.gw.detector.InterferometerStrainData` for further information.
 
         Parameters
-        ----------
+        ==========
         sampling_frequency: float
             The sampling frequency (in Hz)
         duration: float
@@ -180,7 +171,7 @@ class Interferometer(object):
         """ Set the `Interferometer.strain_data` from a frame file
 
         Parameters
-        ----------
+        ==========
         frame_file: str
             File from which to load data.
         channel: str
@@ -208,7 +199,7 @@ class Interferometer(object):
         using strain_data.set_from_channel_name()
 
         Parameters
-        ----------
+        ==========
         channel: str
             Channel to look for using gwpy in the format `IFO:Channel`
         sampling_frequency: float
@@ -227,7 +218,7 @@ class Interferometer(object):
         """ Set the `Interferometer.strain_data` from a csv file
 
         Parameters
-        ----------
+        ==========
         filename: str
             The path to the file to read in
 
@@ -239,7 +230,7 @@ class Interferometer(object):
         """ Set the `Interferometer.strain_data` to zero noise
 
         Parameters
-        ----------
+        ==========
         sampling_frequency: float
             The sampling frequency (in Hz)
         duration: float
@@ -263,7 +254,7 @@ class Interferometer(object):
         Note: there is a typo in the definition of the wave-frame in Nishizawa et al.
 
         Parameters
-        -------
+        ==========
         ra: float
             right ascension in radians
         dec: float
@@ -276,7 +267,7 @@ class Interferometer(object):
             polarisation mode (e.g. 'plus', 'cross')
 
         Returns
-        -------
+        =======
         array_like: A 3x3 array representation of the antenna response for the specified mode
 
         """
@@ -287,14 +278,14 @@ class Interferometer(object):
         """ Get the detector response for a particular waveform
 
         Parameters
-        -------
+        ==========
         waveform_polarizations: dict
             polarizations of the waveform
         parameters: dict
             parameters describing position and time of arrival of the signal
 
         Returns
-        -------
+        =======
         array_like: A 3x3 array representation of the detector response (signal observed in the interferometer)
         """
         signal = {}
@@ -327,15 +318,57 @@ class Interferometer(object):
 
         return signal_ifo
 
+    def check_signal_duration(self, parameters, raise_error=True):
+        """ Check that the signal with the given parameters fits in the data
+
+        Parameters
+        ==========
+        parameters: dict
+            A dictionary of the injection parameters
+        raise_error: bool
+            If True, raise an error in the signal does not fit. Otherwise, print
+            a warning message.
+        """
+        try:
+            parameters = generate_all_bbh_parameters(parameters)
+        except AttributeError:
+            logger.debug(
+                "generate_all_bbh_parameters parameters failed during check_signal_duration"
+            )
+            return
+
+        if ("mass_1" not in parameters) and ("mass_2" not in parameters):
+            if raise_error:
+                raise AttributeError("Unable to check signal duration as mass not given")
+            else:
+                return
+
+        # Calculate the time to merger
+        deltaT = gwutils.calculate_time_to_merger(
+            frequency=self.minimum_frequency,
+            mass_1=parameters["mass_1"],
+            mass_2=parameters["mass_2"],
+        )
+        deltaT = np.round(deltaT, 1)
+        if deltaT > self.duration:
+            msg = (
+                f"The injected signal has a duration in-band of {deltaT}s, but "
+                f"the data for detector {self.name} has a duration of {self.duration}s"
+            )
+            if raise_error:
+                raise ValueError(msg)
+            else:
+                logger.warning(msg)
+
     def inject_signal(self, parameters, injection_polarizations=None,
-                      waveform_generator=None):
+                      waveform_generator=None, raise_error=True):
         """ General signal injection method.
         Provide the injection parameters and either the injection polarizations
         or the waveform generator to inject a signal into the detector.
         Defaults to the injection polarizations is both are given.
 
         Parameters
-        ----------
+        ==========
         parameters: dict
             Parameters of the injection.
         injection_polarizations: dict, optional
@@ -346,20 +379,26 @@ class Interferometer(object):
         waveform_generator: bilby.gw.waveform_generator.WaveformGenerator, optional
             A WaveformGenerator instance using the source model to inject. If
             `injection_polarizations` is given, this will be ignored.
+        raise_error: bool
+            If true, raise an error if the injected signal has a duration
+            longer than the data duration. If False, a warning will be printed
+            instead.
 
-        Note
-        -------
+        Notes
+        =====
         if your signal takes a substantial amount of time to generate, or
         you experience buggy behaviour. It is preferable to provide the
         injection_polarizations directly.
 
         Returns
-        -------
+        =======
         injection_polarizations: dict
             The injected polarizations. This is the same as the injection_polarizations parameters
             if it was passed in. Otherwise it is the return value of waveform_generator.frequency_domain_strain().
 
         """
+        self.check_signal_duration(parameters, raise_error)
+
         if injection_polarizations is None and waveform_generator is None:
             raise ValueError(
                 "inject_signal needs one of waveform_generator or "
@@ -377,20 +416,20 @@ class Interferometer(object):
         Alternative to `inject_signal` and `inject_signal_from_waveform_polarizations`
 
         Parameters
-        ----------
+        ==========
         parameters: dict
             Parameters of the injection.
         waveform_generator: bilby.gw.waveform_generator.WaveformGenerator
             A WaveformGenerator instance using the source model to inject.
 
-        Note
-        -------
+        Notes
+        =====
         if your signal takes a substantial amount of time to generate, or
         you experience buggy behaviour. It is preferable to use the
         inject_signal_from_waveform_polarizations() method.
 
         Returns
-        -------
+        =======
         injection_polarizations: dict
             The internally generated injection parameters
 
@@ -406,7 +445,7 @@ class Interferometer(object):
         Alternative to `inject_signal` and `inject_signal_from_waveform_generator`.
 
         Parameters
-        ----------
+        ==========
         parameters: dict
             Parameters of the injection.
         injection_polarizations: dict
@@ -436,10 +475,10 @@ class Interferometer(object):
 
     @property
     def amplitude_spectral_density_array(self):
-        """ Returns the amplitude spectral density (ASD) given we know a power spectral denstiy (PSD)
+        """ Returns the amplitude spectral density (ASD) given we know a power spectral density (PSD)
 
         Returns
-        -------
+        =======
         array_like: An array representation of the ASD
 
         """
@@ -455,7 +494,7 @@ class Interferometer(object):
         This accounts for whether the data in the interferometer has been windowed.
 
         Returns
-        -------
+        =======
         array_like: An array representation of the PSD
 
         """
@@ -476,7 +515,7 @@ class Interferometer(object):
         Use the time delay function from utils.
 
         Parameters
-        -------
+        ==========
         ra: float
             right ascension of source in radians
         dec: float
@@ -485,7 +524,7 @@ class Interferometer(object):
             GPS time
 
         Returns
-        -------
+        =======
         float: The time delay from geocenter in seconds
         """
         return gwutils.time_delay_geocentric(self.geometry.vertex, np.array([0, 0, 0]), ra, dec, time)
@@ -498,7 +537,7 @@ class Interferometer(object):
         See Section 2.1 of LIGO-T980044-10 for the correct expression
 
         Returns
-        -------
+        =======
         array_like: A 3D array representation of the vertex
         """
         return gwutils.get_vertex_position_geocentric(self.geometry.latitude_radians,
@@ -509,12 +548,12 @@ class Interferometer(object):
         """
 
         Parameters
-        ----------
+        ==========
         signal: array_like
             Array containing the signal
 
         Returns
-        -------
+        =======
         float: The optimal signal to noise ratio possible squared
         """
         return gwutils.optimal_snr_squared(
@@ -526,12 +565,12 @@ class Interferometer(object):
         """
 
         Parameters
-        ----------
+        ==========
         signal: array_like
             Array containing the signal
 
         Returns
-        -------
+        =======
         float: The optimal signal to noise ratio possible squared
         """
         return gwutils.noise_weighted_inner_product(
@@ -544,12 +583,12 @@ class Interferometer(object):
         """
 
         Parameters
-        ----------
+        ==========
         signal: array_like
             Array containing the signal
 
         Returns
-        -------
+        =======
         float: The matched filter signal to noise ratio squared
 
         """
@@ -564,7 +603,7 @@ class Interferometer(object):
         """ Calculates the whitened data by dividing data by the amplitude spectral density
 
         Returns
-        -------
+        =======
         array_like: The whitened data
         """
         return self.strain_data.frequency_domain_strain / self.amplitude_spectral_density_array
@@ -573,7 +612,7 @@ class Interferometer(object):
         """ Creates a save file for the data in plain text format
 
         Parameters
-        ----------
+        ==========
         outdir: str
             The output directory in which the data is supposed to be saved
         label: str
@@ -599,6 +638,7 @@ class Interferometer(object):
                    header='f h(f)')
 
     def plot_data(self, signal=None, outdir='.', label=None):
+        import matplotlib.pyplot as plt
         if utils.command_line_args.bilby_test_mode:
             return
 
@@ -641,7 +681,7 @@ class Interferometer(object):
         """ Plots the strain data in the time domain
 
         Parameters
-        ----------
+        ==========
         outdir, label: str
             Used in setting the saved filename.
         bandpass: tuple, optional
@@ -656,23 +696,26 @@ class Interferometer(object):
             plotting.
 
         """
+        import matplotlib.pyplot as plt
+        from gwpy.timeseries import TimeSeries
+        from gwpy.signal.filter_design import bandpass, concatenate_zpks, notch
 
         # We use the gwpy timeseries to perform bandpass and notching
         if notches is None:
             notches = list()
-        timeseries = gwpy.timeseries.TimeSeries(
+        timeseries = TimeSeries(
             data=self.strain_data.time_domain_strain, times=self.strain_data.time_array)
         zpks = []
         if bandpass_frequencies is not None:
-            zpks.append(gwpy.signal.filter_design.bandpass(
+            zpks.append(bandpass(
                 bandpass_frequencies[0], bandpass_frequencies[1],
                 self.strain_data.sampling_frequency))
         if notches is not None:
             for line in notches:
-                zpks.append(gwpy.signal.filter_design.notch(
+                zpks.append(notch(
                     line, self.strain_data.sampling_frequency))
         if len(zpks) > 0:
-            zpk = gwpy.signal.filter_design.concatenate_zpks(*zpks)
+            zpk = concatenate_zpks(*zpks)
             strain = timeseries.filter(zpk, filtfilt=False)
         else:
             strain = timeseries
@@ -704,45 +747,46 @@ class Interferometer(object):
         plt.close(fig)
 
     @staticmethod
-    def _hdf5_filename_from_outdir_label(outdir, label):
-        return os.path.join(outdir, label + '.h5')
+    def _filename_from_outdir_label_extension(outdir, label, extension="h5"):
+        return os.path.join(outdir, label + f'.{extension}')
 
-    def to_hdf5(self, outdir='outdir', label=None):
-        """ Save the object to a hdf5 file
+    _save_ifo_docstring = """ Save the object to a {format} file
 
-        Attributes
-        ----------
-        outdir: str, optional
-            Output directory name of the file, defaults to 'outdir'.
-        label: str, optional
-            Output file name, is self.name if not given otherwise.
-        """
-        import deepdish
-        if sys.version_info[0] < 3:
-            raise NotImplementedError('Pickling of Interferometer is not supported in Python 2.'
-                                      'Use Python 3 instead.')
-        if label is None:
-            label = self.name
+    {extra}
+
+    Attributes
+    ==========
+    outdir: str, optional
+        Output directory name of the file, defaults to 'outdir'.
+    label: str, optional
+        Output file name, is self.name if not given otherwise.
+    """
+
+    _load_docstring = """ Loads in an Interferometer object from a {format} file
+
+    Parameters
+    ==========
+    filename: str
+        If given, try to load from this filename
+
+    """
+
+    @docstring(_save_ifo_docstring.format(
+        format="pickle", extra=".. versionadded:: 1.1.0"
+    ))
+    def to_pickle(self, outdir="outdir", label=None):
+        import dill
         utils.check_directory_exists_and_if_not_mkdir('outdir')
-        filename = self._hdf5_filename_from_outdir_label(outdir, label)
-        deepdish.io.save(filename, self)
+        filename = self._filename_from_outdir_label_extension(outdir, label, extension="pkl")
+        with open(filename, "wb") as ff:
+            dill.dump(self, ff)
 
     @classmethod
-    def from_hdf5(cls, filename=None):
-        """ Loads in an Interferometer object from an hdf5 file
-
-        Parameters
-        ----------
-        filename: str
-            If given, try to load from this filename
-
-        """
-        import deepdish
-        if sys.version_info[0] < 3:
-            raise NotImplementedError('Pickling of Interferometer is not supported in Python 2.'
-                                      'Use Python 3 instead.')
-
-        res = deepdish.io.load(filename)
+    @docstring(_load_docstring.format(format="pickle"))
+    def from_pickle(cls, filename=None):
+        import dill
+        with open(filename, "rb") as ff:
+            res = dill.load(ff)
         if res.__class__ != cls:
             raise TypeError('The loaded object is not an Interferometer')
         return res

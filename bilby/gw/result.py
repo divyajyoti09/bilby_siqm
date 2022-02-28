@@ -1,11 +1,7 @@
-from __future__ import division
-
 import json
-import pickle
 import os
+import pickle
 
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
 import numpy as np
 
 from ..core.result import Result as CoreResult
@@ -119,12 +115,12 @@ class CompactBinaryCoalescenceResult(CoreResult):
         properties.
 
         Parameters
-        ----------
+        ==========
         detector: str [H1, L1, V1]
             Detector name
 
         Returns
-        -------
+        =======
         injection_properties: dict
             A dictionary of the injection properties
 
@@ -144,12 +140,13 @@ class CompactBinaryCoalescenceResult(CoreResult):
         Plot is saved to {self.outdir}/{self.label}_calibration.{format}
 
         Parameters
-        ----------
+        ==========
         level: float
             Quantile for confidence levels, default=0.9, i.e., 90% interval
         format: str
             Format to save the plot, default=png, options are png/pdf
         """
+        import matplotlib.pyplot as plt
         if format not in ["png", "pdf"]:
             raise ValueError("Format should be one of png or pdf")
 
@@ -188,7 +185,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
             if len(amp_params) > 0:
                 amplitude = 100 * np.column_stack([posterior[param] for param in amp_params])
                 plot_spline_pos(logfreqs, amplitude, color=color, level=level,
-                                label="{0} (mean, {1}$\%$)".format(ifo.upper(), int(level * 100)))
+                                label=r"{0} (mean, {1}$\%$)".format(ifo.upper(), int(level * 100)))
 
             # Phase calibration model
             plt.sca(ax2)
@@ -197,7 +194,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
             if len(phase_params) > 0:
                 phase = np.column_stack([posterior[param] for param in phase_params])
                 plot_spline_pos(logfreqs, phase, color=color, level=level,
-                                label="{0} (mean, {1}$\%$)".format(ifo.upper(), int(level * 100)),
+                                label=r"{0} (mean, {1}$\%$)".format(ifo.upper(), int(level * 100)),
                                 xform=spline_angle_xform)
 
         ax1.tick_params(labelsize=.75 * font_size)
@@ -207,7 +204,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
         ax2.set_xscale('log')
 
         ax2.set_xlabel('Frequency [Hz]', fontsize=font_size)
-        ax1.set_ylabel('Amplitude [$\%$]', fontsize=font_size)
+        ax1.set_ylabel(r'Amplitude [$\%$]', fontsize=font_size)
         ax2.set_ylabel('Phase [deg]', fontsize=font_size)
 
         filename = os.path.join(outdir, self.label + '_calibration.' + format)
@@ -231,7 +228,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
         If injection parameters can be found, the injection will be plotted.
 
         Parameters
-        ----------
+        ==========
         interferometers: (list, bilby.gw.detector.InterferometerList, optional)
         level: float, optional
             symmetric confidence interval to show, default is 90%
@@ -273,7 +270,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
         If injection parameters can be found, the injection will be plotted.
 
         Parameters
-        ----------
+        ==========
         interferometer: (str, bilby.gw.detector.interferometer.Interferometer)
             detector to use, if an Interferometer object is passed the data
             will be overlaid on the posterior
@@ -297,7 +294,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
             posterior. Default is 0.2
 
         Returns
-        -------
+        =======
         fig: figure-handle, only is save=False
 
         Notes
@@ -337,7 +334,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
             interferometer.name))
 
         if n_samples is None:
-            n_samples = len(self.posterior)
+            samples = self.posterior
         elif n_samples > len(self.posterior):
             logger.debug(
                 "Requested more waveform samples ({}) than we have "
@@ -345,14 +342,16 @@ class CompactBinaryCoalescenceResult(CoreResult):
                     n_samples, len(self.posterior)
                 )
             )
-            n_samples = len(self.posterior)
+            samples = self.posterior
+        else:
+            samples = self.posterior.sample(n_samples, replace=False)
 
         if start_time is None:
             start_time = - 0.4
-        start_time = np.mean(self.posterior.geocent_time) + start_time
+        start_time = np.mean(samples.geocent_time) + start_time
         if end_time is None:
             end_time = 0.2
-        end_time = np.mean(self.posterior.geocent_time) + end_time
+        end_time = np.mean(samples.geocent_time) + end_time
         if format == "html":
             start_time = - np.inf
             end_time = np.inf
@@ -393,6 +392,8 @@ class CompactBinaryCoalescenceResult(CoreResult):
                 )
             )
         else:
+            import matplotlib.pyplot as plt
+            from matplotlib import rcParams
             old_font_size = rcParams["font.size"]
             rcParams["font.size"] = 20
             fig, axs = plt.subplots(
@@ -470,8 +471,8 @@ class CompactBinaryCoalescenceResult(CoreResult):
 
         fd_waveforms = list()
         td_waveforms = list()
-        for ii in range(n_samples):
-            params = dict(self.posterior.iloc[ii])
+        for _, params in samples.iterrows():
+            params = dict(params)
             wf_pols = waveform_generator.frequency_domain_strain(params)
             fd_waveform = interferometer.get_detector_response(wf_pols, params)
             fd_waveforms.append(fd_waveform[frequency_idxs])
@@ -584,7 +585,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
                 plot_frequencies,
                 np.percentile(fd_waveforms, lower_percentile, axis=0),
                 np.percentile(fd_waveforms, upper_percentile, axis=0),
-                color=WAVEFORM_COLOR, label='{}\% credible interval'.format(
+                color=WAVEFORM_COLOR, label=r'{}\% credible interval'.format(
                     int(upper_percentile - lower_percentile)),
                 alpha=0.3)
             axs[1].plot(
@@ -702,7 +703,7 @@ class CompactBinaryCoalescenceResult(CoreResult):
         required the installation of ligo.skymap.
 
         Parameters
-        ----------
+        ==========
         maxpts: int
             Maximum number of samples to use, if None all samples are used
         trials: int
@@ -733,6 +734,8 @@ class CompactBinaryCoalescenceResult(CoreResult):
             If true, load the cached pickle file (default name), or the
             pickle-file give as a path.
         """
+        import matplotlib.pyplot as plt
+        from matplotlib import rcParams
 
         try:
             from astropy.time import Time

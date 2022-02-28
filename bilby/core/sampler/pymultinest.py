@@ -24,8 +24,8 @@ class Pymultinest(NestedSampler):
     for that class for further help. Under Other Parameters, we list commonly
     used kwargs and the bilby defaults.
 
-    Other Parameters
-    ----------------
+    Parameters
+    ==========
     npoints: int
         The number of live points, note this can also equivalently be given as
         one of [nlive, nlives, n_live_points]
@@ -79,6 +79,12 @@ class Pymultinest(NestedSampler):
         temporary_directory=True,
         **kwargs
     ):
+        try:
+            from mpi4py import MPI
+
+            using_mpi = MPI.COMM_WORLD.Get_size() > 1
+        except ImportError:
+            using_mpi = False
         super(Pymultinest, self).__init__(
             likelihood=likelihood,
             priors=priors,
@@ -92,7 +98,6 @@ class Pymultinest(NestedSampler):
         )
         self._apply_multinest_boundaries()
         self.exit_code = exit_code
-        using_mpi = len([key for key in os.environ if "MPI" in key])
         if using_mpi and temporary_directory:
             logger.info(
                 "Temporary directory incompatible with MPI, "
@@ -111,15 +116,15 @@ class Pymultinest(NestedSampler):
                     kwargs["n_live_points"] = kwargs.pop(equiv)
 
     def _verify_kwargs_against_default_kwargs(self):
-        """ Check the kwargs """
+        """Check the kwargs"""
 
         self.outputfiles_basename = self.kwargs.pop("outputfiles_basename", None)
 
         # for PyMultiNest >=2.9 the n_params kwarg cannot be None
         if self.kwargs["n_params"] is None:
             self.kwargs["n_params"] = self.ndim
-        if self.kwargs['dump_callback'] is None:
-            self.kwargs['dump_callback'] = self._dump_callback
+        if self.kwargs["dump_callback"] is None:
+            self.kwargs["dump_callback"] = self._dump_callback
         NestedSampler._verify_kwargs_against_default_kwargs(self)
 
     def _dump_callback(self, *args, **kwargs):
@@ -129,9 +134,9 @@ class Pymultinest(NestedSampler):
 
     def _apply_multinest_boundaries(self):
         if self.kwargs["wrapped_params"] is None:
-            self.kwargs["wrapped_params"] = []
-            for param, value in self.priors.items():
-                if value.boundary == "periodic":
+            self.kwargs["wrapped_params"] = list()
+            for param in self.search_parameter_keys:
+                if self.priors[param].boundary == "periodic":
                     self.kwargs["wrapped_params"].append(1)
                 else:
                     self.kwargs["wrapped_params"].append(0)
@@ -166,7 +171,7 @@ class Pymultinest(NestedSampler):
             )
 
     def write_current_state_and_exit(self, signum=None, frame=None):
-        """ Write current state and exit on exit_code """
+        """Write current state and exit on exit_code"""
         logger.info(
             "Run interrupted by signal {}: checkpoint and exit on {}".format(
                 signum, self.exit_code
@@ -187,11 +192,13 @@ class Pymultinest(NestedSampler):
                 self.outputfiles_basename, self.temporary_outputfiles_basename
             )
         )
-        if self.outputfiles_basename.endswith('/'):
+        if self.outputfiles_basename.endswith("/"):
             outputfiles_basename_stripped = self.outputfiles_basename[:-1]
         else:
             outputfiles_basename_stripped = self.outputfiles_basename
-        distutils.dir_util.copy_tree(self.temporary_outputfiles_basename, outputfiles_basename_stripped)
+        distutils.dir_util.copy_tree(
+            self.temporary_outputfiles_basename, outputfiles_basename_stripped
+        )
 
     def _move_temporary_directory_to_proper_path(self):
         """
@@ -237,12 +244,13 @@ class Pymultinest(NestedSampler):
         self.calc_likelihood_count()
         self.result.outputfiles_basename = self.outputfiles_basename
         self.result.sampling_time = datetime.timedelta(seconds=self.total_sampling_time)
+        self.result.nested_samples = self._nested_samples
         return self.result
 
     def _check_and_load_sampling_time_file(self):
-        self.time_file_path = self.kwargs["outputfiles_basename"] + '/sampling_time.dat'
+        self.time_file_path = self.kwargs["outputfiles_basename"] + "/sampling_time.dat"
         if os.path.exists(self.time_file_path):
-            with open(self.time_file_path, 'r') as time_file:
+            with open(self.time_file_path, "r") as time_file:
                 self.total_sampling_time = float(time_file.readline())
         else:
             self.total_sampling_time = 0
@@ -252,10 +260,36 @@ class Pymultinest(NestedSampler):
         new_sampling_time = current_time - self.start_time
         self.total_sampling_time += new_sampling_time
         self.start_time = current_time
-        with open(self.time_file_path, 'w') as time_file:
+        with open(self.time_file_path, "w") as time_file:
             time_file.write(str(self.total_sampling_time))
 
     def _clean_up_run_directory(self):
         if self.use_temporary_directory:
             self._move_temporary_directory_to_proper_path()
             self.kwargs["outputfiles_basename"] = self.outputfiles_basename
+
+    @property
+    def _nested_samples(self):
+        """
+        Extract nested samples from the pymultinest files.
+        This requires combining the "dead" points from `ev.dat` and the "live"
+        points from `phys_live.points`.
+        The prior volume associated with the current live points is the simple
+        estimate of `remaining_prior_volume / N`.
+        """
+        import pandas as pd
+
+        dir_ = self.kwargs["outputfiles_basename"]
+        dead_points = np.genfromtxt(dir_ + "/ev.dat")
+        live_points = np.genfromtxt(dir_ + "/phys_live.points")
+
+        nlive = self.kwargs["n_live_points"]
+        final_log_prior_volume = -len(dead_points) / nlive - np.log(nlive)
+        live_points = np.insert(live_points, -1, final_log_prior_volume, axis=-1)
+
+        nested_samples = pd.DataFrame(
+            np.vstack([dead_points, live_points]).copy(),
+            columns=self.search_parameter_keys
+            + ["log_likelihood", "log_prior_volume", "mode"],
+        )
+        return nested_samples

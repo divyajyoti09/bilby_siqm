@@ -1,18 +1,17 @@
 import inspect
 import sys
 import datetime
-from collections import OrderedDict
 
 import bilby
 from ..utils import command_line_args, logger, loaded_modules_dict
 from ..prior import PriorDict, DeltaFunction
-
 from .base_sampler import Sampler, SamplingMarginalisedParameterError
 from .cpnest import Cpnest
 from .dynamic_dynesty import DynamicDynesty
 from .dynesty import Dynesty
 from .emcee import Emcee
 from .kombine import Kombine
+from .nessai import Nessai
 from .nestle import Nestle
 from .polychord import PyPolyChord
 from .ptemcee import Ptemcee
@@ -22,14 +21,29 @@ from .pymultinest import Pymultinest
 from .ultranest import Ultranest
 from .fake_sampler import FakeSampler
 from .dnest4 import DNest4
+from .zeus import Zeus
+from bilby.bilby_mcmc import Bilby_MCMC
 from . import proposal
 
 IMPLEMENTED_SAMPLERS = {
-    'cpnest': Cpnest, 'dnest4': DNest4, 'dynamic_dynesty': DynamicDynesty,
-    'dynesty': Dynesty, 'emcee': Emcee, 'kombine': Kombine, 'nestle': Nestle,
-    'ptemcee': Ptemcee, 'ptmcmcsampler': PTMCMCSampler, 'pymc3': Pymc3,
-    'pymultinest': Pymultinest, 'pypolychord': PyPolyChord, 'ultranest': Ultranest,
-    'fake_sampler': FakeSampler}
+    "bilby_mcmc": Bilby_MCMC,
+    "cpnest": Cpnest,
+    "dnest4": DNest4,
+    "dynamic_dynesty": DynamicDynesty,
+    "dynesty": Dynesty,
+    "emcee": Emcee,
+    "kombine": Kombine,
+    "nessai": Nessai,
+    "nestle": Nestle,
+    "ptemcee": Ptemcee,
+    "ptmcmcsampler": PTMCMCSampler,
+    "pymc3": Pymc3,
+    "pymultinest": Pymultinest,
+    "pypolychord": PyPolyChord,
+    "ultranest": Ultranest,
+    "zeus": Zeus,
+    "fake_sampler": FakeSampler,
+}
 
 if command_line_args.sampler_help:
     sampler = command_line_args.sampler_help
@@ -39,25 +53,41 @@ if command_line_args.sampler_help:
         print(sampler_class.__doc__)
     else:
         if sampler == "None":
-            print('For help with a specific sampler, call sampler-help with '
-                  'the name of the sampler')
+            print(
+                "For help with a specific sampler, call sampler-help with "
+                "the name of the sampler"
+            )
         else:
-            print('Requested sampler {} not implemented'.format(sampler))
-        print('Available samplers = {}'.format(IMPLEMENTED_SAMPLERS))
+            print("Requested sampler {} not implemented".format(sampler))
+        print("Available samplers = {}".format(IMPLEMENTED_SAMPLERS))
 
     sys.exit()
 
 
-def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
-                sampler='dynesty', use_ratio=None, injection_parameters=None,
-                conversion_function=None, plot=False, default_priors_file=None,
-                clean=None, meta_data=None, save=True, gzip=False,
-                result_class=None, npool=1, **kwargs):
+def run_sampler(
+    likelihood,
+    priors=None,
+    label="label",
+    outdir="outdir",
+    sampler="dynesty",
+    use_ratio=None,
+    injection_parameters=None,
+    conversion_function=None,
+    plot=False,
+    default_priors_file=None,
+    clean=None,
+    meta_data=None,
+    save=True,
+    gzip=False,
+    result_class=None,
+    npool=1,
+    **kwargs
+):
     """
     The primary interface to easy parameter estimation
 
     Parameters
-    ----------
+    ==========
     likelihood: `bilby.Likelihood`
         A `Likelihood` instance
     priors: `bilby.PriorDict`
@@ -92,9 +122,10 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         saving. For example, if `meta_data={dtype: 'signal'}`. Warning: in case
         of conflict with keys saved by bilby, the meta_data keys will be
         overwritten.
-    save: bool
+    save: bool, str
         If true, save the priors and results to disk.
         If hdf5, save as an hdf5 file instead of json.
+        If pickle or pkl, save as an pickle file instead of json.
     gzip: bool
         If true, and save is true, gzip the saved results file.
     result_class: bilby.core.result.Result, or child of
@@ -108,19 +139,19 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         All kwargs are passed directly to the samplers `run` function
 
     Returns
-    -------
+    =======
     result: bilby.core.result.Result
         An object containing the results
     """
 
     logger.info(
-        "Running for label '{}', output will be saved to '{}'".format(
-            label, outdir))
+        "Running for label '{}', output will be saved to '{}'".format(label, outdir)
+    )
 
     if clean:
         command_line_args.clean = clean
     if command_line_args.clean:
-        kwargs['resume'] = False
+        kwargs["resume"] = False
 
     from . import IMPLEMENTED_SAMPLERS
 
@@ -129,23 +160,26 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
 
     _check_marginalized_parameters_not_sampled(likelihood, priors)
 
-    if type(priors) in [dict, OrderedDict]:
+    if type(priors) == dict:
         priors = PriorDict(priors)
     elif isinstance(priors, PriorDict):
         pass
     else:
-        raise ValueError("Input priors not understood")
+        raise ValueError("Input priors not understood should be dict or PriorDict")
 
     priors.fill_priors(likelihood, default_priors_file=default_priors_file)
 
     # Generate the meta-data if not given and append the likelihood meta_data
     if meta_data is None:
         meta_data = dict()
+    likelihood.label = label
+    likelihood.outdir = outdir
     meta_data['likelihood'] = likelihood.meta_data
     meta_data["loaded_modules"] = loaded_modules_dict()
 
     if command_line_args.bilby_zero_likelihood_mode:
         from bilby.core.likelihood import ZeroLikelihood
+
         likelihood = ZeroLikelihood(likelihood)
 
     if isinstance(sampler, Sampler):
@@ -154,64 +188,88 @@ def run_sampler(likelihood, priors=None, label='label', outdir='outdir',
         if sampler.lower() in IMPLEMENTED_SAMPLERS:
             sampler_class = IMPLEMENTED_SAMPLERS[sampler.lower()]
             sampler = sampler_class(
-                likelihood, priors=priors, outdir=outdir, label=label,
-                injection_parameters=injection_parameters, meta_data=meta_data,
-                use_ratio=use_ratio, plot=plot, result_class=result_class,
-                npool=npool, **kwargs)
+                likelihood,
+                priors=priors,
+                outdir=outdir,
+                label=label,
+                injection_parameters=injection_parameters,
+                meta_data=meta_data,
+                use_ratio=use_ratio,
+                plot=plot,
+                result_class=result_class,
+                npool=npool,
+                **kwargs
+            )
         else:
             print(IMPLEMENTED_SAMPLERS)
-            raise ValueError(
-                "Sampler {} not yet implemented".format(sampler))
+            raise ValueError("Sampler {} not yet implemented".format(sampler))
     elif inspect.isclass(sampler):
         sampler = sampler.__init__(
-            likelihood, priors=priors,
-            outdir=outdir, label=label, use_ratio=use_ratio, plot=plot,
-            injection_parameters=injection_parameters, meta_data=meta_data,
-            npool=npool, **kwargs)
+            likelihood,
+            priors=priors,
+            outdir=outdir,
+            label=label,
+            use_ratio=use_ratio,
+            plot=plot,
+            injection_parameters=injection_parameters,
+            meta_data=meta_data,
+            npool=npool,
+            **kwargs
+        )
     else:
         raise ValueError(
             "Provided sampler should be a Sampler object or name of a known "
-            "sampler: {}.".format(', '.join(IMPLEMENTED_SAMPLERS.keys())))
+            "sampler: {}.".format(", ".join(IMPLEMENTED_SAMPLERS.keys()))
+        )
 
     if sampler.cached_result:
         logger.warning("Using cached result")
-        return sampler.cached_result
-
-    start_time = datetime.datetime.now()
-    if command_line_args.bilby_test_mode:
-        result = sampler._run_test()
+        result = sampler.cached_result
     else:
-        result = sampler.run_sampler()
-    end_time = datetime.datetime.now()
+        # Run the sampler
+        start_time = datetime.datetime.now()
+        if command_line_args.bilby_test_mode:
+            result = sampler._run_test()
+        else:
+            result = sampler.run_sampler()
+        end_time = datetime.datetime.now()
 
-    # Some samplers calculate the sampling time internally
-    if result.sampling_time is None:
-        result.sampling_time = end_time - start_time
-    logger.info('Sampling time: {}'.format(result.sampling_time))
-    # Convert sampling time into seconds
-    result.sampling_time = result.sampling_time.total_seconds()
+        # Some samplers calculate the sampling time internally
+        if result.sampling_time is None:
+            result.sampling_time = end_time - start_time
+        elif isinstance(result.sampling_time, (float, int)):
+            result.sampling_time = datetime.timedelta(result.sampling_time)
 
-    if sampler.use_ratio:
-        result.log_noise_evidence = likelihood.noise_log_likelihood()
-        result.log_bayes_factor = result.log_evidence
-        result.log_evidence = \
-            result.log_bayes_factor + result.log_noise_evidence
-    else:
-        result.log_noise_evidence = likelihood.noise_log_likelihood()
-        result.log_bayes_factor = \
-            result.log_evidence - result.log_noise_evidence
+        logger.info('Sampling time: {}'.format(result.sampling_time))
+        # Convert sampling time into seconds
+        result.sampling_time = result.sampling_time.total_seconds()
 
-    # Initial save of the sampler in case of failure in post-processing
-    if save:
-        result.save_to_file(extension=save, gzip=gzip)
+        if sampler.use_ratio:
+            result.log_noise_evidence = likelihood.noise_log_likelihood()
+            result.log_bayes_factor = result.log_evidence
+            result.log_evidence = \
+                result.log_bayes_factor + result.log_noise_evidence
+        else:
+            result.log_noise_evidence = likelihood.noise_log_likelihood()
+            result.log_bayes_factor = \
+                result.log_evidence - result.log_noise_evidence
+
+        if None not in [result.injection_parameters, conversion_function]:
+            result.injection_parameters = conversion_function(
+                result.injection_parameters)
+
+        # Initial save of the sampler in case of failure in samples_to_posterior
+        if save:
+            result.save_to_file(extension=save, gzip=gzip)
 
     if None not in [result.injection_parameters, conversion_function]:
-        result.injection_parameters = conversion_function(
-            result.injection_parameters)
+        result.injection_parameters = conversion_function(result.injection_parameters)
 
-    result.samples_to_posterior(likelihood=likelihood, priors=result.priors,
-                                conversion_function=conversion_function,
-                                npool=npool)
+    # Check if the posterior has already been created
+    if getattr(result, "_posterior", None) is None:
+        result.samples_to_posterior(likelihood=likelihood, priors=result.priors,
+                                    conversion_function=conversion_function,
+                                    npool=npool)
 
     if save:
         # The overwrite here ensures we overwrite the initially stored data
@@ -228,5 +286,7 @@ def _check_marginalized_parameters_not_sampled(likelihood, priors):
         if key in priors:
             if not isinstance(priors[key], (float, DeltaFunction)):
                 raise SamplingMarginalisedParameterError(
-                    "Likelihood is {} marginalized but you are trying to sample in {}. "
-                    .format(key, key))
+                    "Likelihood is {} marginalized but you are trying to sample in {}. ".format(
+                        key, key
+                    )
+                )

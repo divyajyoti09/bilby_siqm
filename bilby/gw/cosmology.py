@@ -1,19 +1,20 @@
-from ..core.utils import logger
+DEFAULT_COSMOLOGY = None
+COSMOLOGY = [None, str(None)]
 
-try:
+
+def _set_default_cosmology():
     from astropy import cosmology as cosmo
-    DEFAULT_COSMOLOGY = cosmo.Planck15
-    COSMOLOGY = [DEFAULT_COSMOLOGY, DEFAULT_COSMOLOGY.name]
-except ImportError:
-    logger.debug("You do not have astropy installed currently. You will"
-                 " not be able to use some of the prebuilt functions.")
-    DEFAULT_COSMOLOGY = None
-    COSMOLOGY = [None, str(None)]
+    global DEFAULT_COSMOLOGY, COSMOLOGY
+    if DEFAULT_COSMOLOGY is None:
+        DEFAULT_COSMOLOGY = cosmo.Planck15
+        COSMOLOGY = [DEFAULT_COSMOLOGY, DEFAULT_COSMOLOGY.name]
 
 
 def get_cosmology(cosmology=None):
+    from astropy import cosmology as cosmo
+    _set_default_cosmology()
     if cosmology is None:
-        cosmology = COSMOLOGY[0]
+        cosmology = DEFAULT_COSMOLOGY
     elif isinstance(cosmology, str):
         cosmology = cosmo.__dict__[cosmology]
     return cosmology
@@ -27,7 +28,7 @@ def set_cosmology(cosmology=None):
     as the last used cosmology.
 
     Parameters
-    ----------
+    ==========
     cosmology: astropy.cosmology.FLRW, str, dict
         Description of cosmology, one of:
             None - Use DEFAULT_COSMOLOGY
@@ -37,10 +38,12 @@ def set_cosmology(cosmology=None):
             class.
 
     Returns
-    -------
+    =======
     cosmo: astropy.cosmology.FLRW
         Cosmology instance
     """
+    from astropy import cosmology as cosmo
+    _set_default_cosmology()
     if cosmology is None:
         cosmology = DEFAULT_COSMOLOGY
     elif isinstance(cosmology, cosmo.FLRW):
@@ -60,3 +63,15 @@ def set_cosmology(cosmology=None):
         COSMOLOGY[1] = cosmology.name
     else:
         COSMOLOGY[1] = repr(cosmology)
+
+
+def z_at_value(func, fval, **kwargs):
+    """
+    Wrapped version of :code:`astropy.cosmology.z_at_value` to return float
+    rather than an :code:`astropy Quantity` as returned for :code:`astropy>=5`.
+
+    See https://docs.astropy.org/en/stable/api/astropy.cosmology.z_at_value.html#astropy.cosmology.z_at_value
+    for detailed documentation.
+    """
+    from astropy.cosmology import z_at_value
+    return float(z_at_value(func=func, fval=fval, **kwargs))

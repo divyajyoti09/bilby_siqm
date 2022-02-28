@@ -1,16 +1,14 @@
-from importlib import import_module
-from io import open as ioopen
 import json
 import os
+from importlib import import_module
+from io import open as ioopen
 
-from future.utils import iteritems
-from matplotlib.cbook import flatten
 import numpy as np
 
-from bilby.core.prior.analytical import DeltaFunction
-from bilby.core.prior.base import Prior, Constraint
-from bilby.core.prior.joint import JointPrior
-from bilby.core.utils import logger, check_directory_exists_and_if_not_mkdir, BilbyJsonEncoder, decode_bilby_json
+from .analytical import DeltaFunction
+from .base import Prior, Constraint
+from .joint import JointPrior
+from ..utils import logger, check_directory_exists_and_if_not_mkdir, BilbyJsonEncoder, decode_bilby_json
 
 
 class PriorDict(dict):
@@ -19,7 +17,7 @@ class PriorDict(dict):
         """ A dictionary of priors
 
         Parameters
-        ----------
+        ==========
         dictionary: Union[dict, str, None]
             If given, a dictionary to generate the prior set.
         filename: Union[str, None]
@@ -61,12 +59,12 @@ class PriorDict(dict):
         Placeholder parameter conversion function.
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary to convert
 
         Returns
-        -------
+        =======
         sample: dict
             Same as input
         """
@@ -76,7 +74,7 @@ class PriorDict(dict):
         """ Write the prior distribution to file.
 
         Parameters
-        ----------
+        ==========
         outdir: str
             output directory name
         label: str
@@ -124,18 +122,20 @@ class PriorDict(dict):
         """ Reads in a prior from a file specification
 
         Parameters
-        ----------
+        ==========
         filename: str
             Name of the file to be read in
 
         Notes
-        -----
+        =====
         Lines beginning with '#' or empty lines will be ignored.
         Priors can be loaded from:
-            bilby.core.prior as, e.g.,    foo = Uniform(minimum=0, maximum=1)
-            floats, e.g.,                 foo = 1
-            bilby.gw.prior as, e.g.,      foo = bilby.gw.prior.AlignedSpin()
-            other external modules, e.g., foo = my.module.CustomPrior(...)
+
+        - bilby.core.prior as, e.g.,    :code:`foo = Uniform(minimum=0, maximum=1)`
+        - floats, e.g.,                 :code:`foo = 1`
+        - bilby.gw.prior as, e.g.,      :code:`foo = bilby.gw.prior.AlignedSpin()`
+        - other external modules, e.g., :code:`foo = my.module.CustomPrior(...)`
+
         """
 
         comments = ['#', '\n']
@@ -154,20 +154,21 @@ class PriorDict(dict):
     @classmethod
     def _get_from_json_dict(cls, prior_dict):
         try:
-            cls == getattr(
+            class_ = getattr(
                 import_module(prior_dict["__module__"]),
                 prior_dict["__name__"])
         except ImportError:
             logger.debug("Cannot import prior module {}.{}".format(
                 prior_dict["__module__"], prior_dict["__name__"]
             ))
+            class_ = cls
         except KeyError:
             logger.debug("Cannot find module name to load")
+            class_ = cls
         for key in ["__module__", "__name__", "__prior_dict__"]:
             if key in prior_dict:
                 del prior_dict[key]
-        obj = cls(dict())
-        obj.from_dictionary(prior_dict)
+        obj = class_(prior_dict)
         return obj
 
     @classmethod
@@ -175,7 +176,7 @@ class PriorDict(dict):
         """ Reads in a prior from a json file
 
         Parameters
-        ----------
+        ==========
         filename: str
             Name of the file to be read in
         """
@@ -185,7 +186,7 @@ class PriorDict(dict):
 
     def from_dictionary(self, dictionary):
         eval_dict = dict(inf=np.inf)
-        for key, val in iteritems(dictionary):
+        for key, val in dictionary.items():
             if isinstance(val, Prior):
                 continue
             elif isinstance(val, (int, float)):
@@ -206,7 +207,15 @@ class PriorDict(dict):
                     module = __name__.replace(
                         '.' + os.path.basename(__file__).replace('.py', ''), ''
                     )
-                cls = getattr(import_module(module), cls, cls)
+                try:
+                    cls = getattr(import_module(module), cls, cls)
+                except ModuleNotFoundError:
+                    logger.error(
+                        "Cannot import prior class {} for entry: {}={}".format(
+                            cls, key, val
+                        )
+                    )
+                    raise
                 if key.lower() in ["conversion_function", "condition_func"]:
                     setattr(self, key, cls)
                 elif isinstance(cls, str):
@@ -230,9 +239,19 @@ class PriorDict(dict):
                             "= {}. Error message {}".format(key, val, e)
                         )
             elif isinstance(val, dict):
-                logger.warning(
-                    'Cannot convert {} into a prior object. '
-                    'Leaving as dictionary.'.format(key))
+                try:
+                    _class = getattr(
+                        import_module(val.get("__module__", "none")),
+                        val.get("__name__", "none"))
+                    dictionary[key] = _class(**val.get("kwargs", dict()))
+                except ImportError:
+                    logger.debug("Cannot import prior module {}.{}".format(
+                        val.get("__module__", "none"), val.get("__name__", "none")
+                    ))
+                    logger.warning(
+                        'Cannot convert {} into a prior object. '
+                        'Leaving as dictionary.'.format(key))
+                    continue
             else:
                 raise TypeError(
                     "Unable to parse prior, bad entry: {} "
@@ -265,7 +284,7 @@ class PriorDict(dict):
         this will set-up default priors for those as well.
 
         Parameters
-        ----------
+        ==========
         likelihood: bilby.likelihood.GravitationalWaveTransient instance
             Used to infer the set of parameters to fill the prior with
         default_priors_file: str, optional
@@ -273,7 +292,7 @@ class PriorDict(dict):
 
 
         Returns
-        -------
+        =======
         prior: dict
             The filled prior dictionary
 
@@ -302,12 +321,12 @@ class PriorDict(dict):
         """Draw samples from the prior set
 
         Parameters
-        ----------
+        ==========
         size: int or tuple of ints, optional
             See numpy.random.uniform docs
 
         Returns
-        -------
+        =======
         dict: Dictionary of the samples
         """
         return self.sample_subset_constrained(keys=list(self.keys()), size=size)
@@ -316,14 +335,14 @@ class PriorDict(dict):
         """ Return an array of samples
 
         Parameters
-        ----------
+        ==========
         keys: list
             A list of keys to sample in
         size: int
             The number of samples to draw
 
         Returns
-        -------
+        =======
         array: array_like
             An array of shape (len(key), size) of the samples (ordered by keys)
         """
@@ -336,14 +355,14 @@ class PriorDict(dict):
         """Draw samples from the prior set for parameters which are not a DeltaFunction
 
         Parameters
-        ----------
+        ==========
         keys: list
             List of prior keys to draw samples from
         size: int or tuple of ints, optional
             See numpy.random.uniform docs
 
         Returns
-        -------
+        =======
         dict: Dictionary of the drawn samples
         """
         self.convert_floats_to_delta_functions()
@@ -356,6 +375,28 @@ class PriorDict(dict):
             else:
                 logger.debug('{} not a known prior.'.format(key))
         return samples
+
+    @property
+    def non_fixed_keys(self):
+        keys = self.keys()
+        keys = [k for k in keys if isinstance(self[k], Prior)]
+        keys = [k for k in keys if self[k].is_fixed is False]
+        keys = [k for k in keys if k not in self.constraint_keys]
+        return keys
+
+    @property
+    def fixed_keys(self):
+        return [
+            k for k, p in self.items()
+            if (p.is_fixed and k not in self.constraint_keys)
+        ]
+
+    @property
+    def constraint_keys(self):
+        return [
+            k for k, p in self.items()
+            if isinstance(p, Constraint)
+        ]
 
     def sample_subset_constrained(self, keys=iter([]), size=None):
         if size is None or size == 1:
@@ -382,52 +423,67 @@ class PriorDict(dict):
             }
             return all_samples
 
-    def normalize_constraint_factor(self, keys):
+    def normalize_constraint_factor(self, keys, min_accept=10000, sampling_chunk=50000, nrepeats=10):
         if keys in self._cached_normalizations.keys():
             return self._cached_normalizations[keys]
         else:
-            min_accept = 1000
-            sampling_chunk = 5000
+            factor_estimates = [
+                self._estimate_normalization(keys, min_accept, sampling_chunk)
+                for _ in range(nrepeats)
+            ]
+            factor = np.mean(factor_estimates)
+            if np.std(factor_estimates) > 0:
+                decimals = int(-np.floor(np.log10(3 * np.std(factor_estimates))))
+                factor_rounded = np.round(factor, decimals)
+            else:
+                factor_rounded = factor
+            self._cached_normalizations[keys] = factor_rounded
+            return factor_rounded
+
+    def _estimate_normalization(self, keys, min_accept, sampling_chunk):
+        samples = self.sample_subset(keys=keys, size=sampling_chunk)
+        keep = np.atleast_1d(self.evaluate_constraints(samples))
+        if len(keep) == 1:
+            self._cached_normalizations[keys] = 1
+            return 1
+        all_samples = {key: np.array([]) for key in keys}
+        while np.count_nonzero(keep) < min_accept:
             samples = self.sample_subset(keys=keys, size=sampling_chunk)
-            keep = np.atleast_1d(self.evaluate_constraints(samples))
-            if len(keep) == 1:
-                return 1
-            all_samples = {key: np.array([]) for key in keys}
-            while np.count_nonzero(keep) < min_accept:
-                samples = self.sample_subset(keys=keys, size=sampling_chunk)
-                for key in samples:
-                    all_samples[key] = np.hstack(
-                        [all_samples[key], samples[key].flatten()])
-                keep = np.array(self.evaluate_constraints(all_samples), dtype=bool)
-            factor = len(keep) / np.count_nonzero(keep)
-            self._cached_normalizations[keys] = factor
-            return factor
+            for key in samples:
+                all_samples[key] = np.hstack(
+                    [all_samples[key], samples[key].flatten()])
+            keep = np.array(self.evaluate_constraints(all_samples), dtype=bool)
+        factor = len(keep) / np.count_nonzero(keep)
+        return factor
 
     def prob(self, sample, **kwargs):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which we want to have the probability of
         kwargs:
             The keyword arguments are passed directly to `np.product`
 
         Returns
-        -------
+        =======
         float: Joint probability of all individual sample probabilities
 
         """
         prob = np.product([self[key].prob(sample[key])
                            for key in sample], **kwargs)
 
+        return self.check_prob(sample, prob)
+
+    def check_prob(self, sample, prob):
         ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(prob == 0.):
-            return prob
+            return prob * ratio
         else:
             if isinstance(prob, float):
                 if self.evaluate_constraints(sample):
-                    return prob
+                    return prob * ratio
                 else:
                     return 0.
             else:
@@ -440,28 +496,30 @@ class PriorDict(dict):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which to calculate the log probability
         axis: None or int
             Axis along which the summation is performed
 
         Returns
-        -------
+        =======
         float or ndarray:
             Joint log probability of all the individual sample probabilities
 
         """
         ln_prob = np.sum([self[key].ln_prob(sample[key])
                           for key in sample], axis=axis)
+        return self.check_ln_prob(sample, ln_prob)
 
+    def check_ln_prob(self, sample, ln_prob):
         ratio = self.normalize_constraint_factor(tuple(sample.keys()))
         if np.all(np.isinf(ln_prob)):
             return ln_prob
         else:
             if isinstance(ln_prob, float):
                 if self.evaluate_constraints(sample):
-                    return ln_prob
+                    return ln_prob + np.log(ratio)
                 else:
                     return -np.inf
             else:
@@ -470,20 +528,36 @@ class PriorDict(dict):
                 constrained_ln_prob[keep] = ln_prob[keep] + np.log(ratio)
                 return constrained_ln_prob
 
+    def cdf(self, sample):
+        """Evaluate the cumulative distribution function at the provided points
+
+        Parameters
+        ----------
+        sample: dict, pandas.DataFrame
+            Dictionary of the samples of which to calculate the CDF
+
+        Returns
+        -------
+        dict, pandas.DataFrame: Dictionary containing the CDF values
+
+        """
+        return sample.__class__({key: self[key].cdf(sample) for key, sample in sample.items()})
+
     def rescale(self, keys, theta):
         """Rescale samples from unit cube to prior
 
         Parameters
-        ----------
+        ==========
         keys: list
             List of prior keys to be rescaled
         theta: list
             List of randomly drawn values on a unit cube associated with the prior keys
 
         Returns
-        -------
+        =======
         list: List of floats containing the rescaled sample
         """
+        from matplotlib.cbook import flatten
         return list(flatten([self[key].rescale(sample) for key, sample in zip(keys, theta)]))
 
     def test_redundancy(self, key, disable_logging=False):
@@ -494,8 +568,8 @@ class PriorDict(dict):
         """
         Test whether there are redundant keys in self.
 
-        Return
-        ------
+        Returns
+        =======
         bool: Whether there are redundancies or not
         """
         redundant = False
@@ -518,14 +592,6 @@ class PriorDict(dict):
         return self.__class__(dictionary=dict(self))
 
 
-class PriorSet(PriorDict):
-
-    def __init__(self, dictionary=None, filename=None):
-        """ DEPRECATED: USE PriorDict INSTEAD"""
-        logger.warning("The name 'PriorSet' is deprecated use 'PriorDict' instead")
-        super(PriorSet, self).__init__(dictionary, filename)
-
-
 class PriorDictException(Exception):
     """ General base class for all prior dict exceptions """
 
@@ -536,7 +602,7 @@ class ConditionalPriorDict(PriorDict):
         """
 
         Parameters
-        ----------
+        ==========
         dictionary: dict
             See parent class
         filename: str
@@ -615,12 +681,12 @@ class ConditionalPriorDict(PriorDict):
         """ Returns the required variables to sample a given conditional key.
 
         Parameters
-        ----------
+        ==========
         key : str
             Name of the key that we want to know the required variables for
 
         Returns
-        ----------
+        =======
         dict: key/value pairs of the required variables
         """
         return {k: self[k].least_recently_sampled for k in getattr(self[key], 'required_variables', [])}
@@ -629,70 +695,80 @@ class ConditionalPriorDict(PriorDict):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which we want to have the probability of
         kwargs:
             The keyword arguments are passed directly to `np.product`
 
         Returns
-        -------
+        =======
         float: Joint probability of all individual sample probabilities
 
         """
-        self._check_resolved()
-        for key, value in sample.items():
-            self[key].least_recently_sampled = value
+        self._prepare_evaluation(*zip(*sample.items()))
         res = [self[key].prob(sample[key], **self.get_required_variables(key)) for key in sample]
-        return np.product(res, **kwargs)
+        prob = np.product(res, **kwargs)
+        return self.check_prob(sample, prob)
 
     def ln_prob(self, sample, axis=None):
         """
 
         Parameters
-        ----------
+        ==========
         sample: dict
             Dictionary of the samples of which we want to have the log probability of
         axis: Union[None, int]
             Axis along which the summation is performed
 
         Returns
-        -------
+        =======
         float: Joint log probability of all the individual sample probabilities
 
         """
-        self._check_resolved()
-        for key, value in sample.items():
-            self[key].least_recently_sampled = value
+        self._prepare_evaluation(*zip(*sample.items()))
         res = [self[key].ln_prob(sample[key], **self.get_required_variables(key)) for key in sample]
-        return np.sum(res, axis=axis)
+        ln_prob = np.sum(res, axis=axis)
+        return self.check_ln_prob(sample, ln_prob)
+
+    def cdf(self, sample):
+        self._prepare_evaluation(*zip(*sample.items()))
+        res = {key: self[key].cdf(sample[key], **self.get_required_variables(key)) for key in sample}
+        return sample.__class__(res)
 
     def rescale(self, keys, theta):
         """Rescale samples from unit cube to prior
 
         Parameters
-        ----------
+        ==========
         keys: list
             List of prior keys to be rescaled
         theta: list
             List of randomly drawn values on a unit cube associated with the prior keys
 
         Returns
-        -------
+        =======
         list: List of floats containing the rescaled sample
         """
+        keys = list(keys)
+        theta = list(theta)
         self._check_resolved()
         self._update_rescale_keys(keys)
         result = dict()
         for key, index in zip(self.sorted_keys_without_fixed_parameters, self._rescale_indexes):
-            required_variables = {k: result[k] for k in getattr(self[key], 'required_variables', [])}
-            result[key] = self[key].rescale(theta[index], **required_variables)
+            result[key] = self[key].rescale(theta[index], **self.get_required_variables(key))
+            self[key].least_recently_sampled = result[key]
         return [result[key] for key in keys]
 
     def _update_rescale_keys(self, keys):
         if not keys == self._least_recently_rescaled_keys:
             self._rescale_indexes = [keys.index(element) for element in self.sorted_keys_without_fixed_parameters]
             self._least_recently_rescaled_keys = keys
+
+    def _prepare_evaluation(self, keys, theta):
+        self._check_resolved()
+        for key, value in zip(keys, theta):
+            self[key].least_recently_sampled = value
 
     def _check_resolved(self):
         if not self._resolved:
@@ -774,14 +850,14 @@ def create_default_prior(name, default_priors_file=None):
     """Make a default prior for a parameter with a known name.
 
     Parameters
-    ----------
+    ==========
     name: str
         Parameter name
     default_priors_file: str, optional
         If given, a file containing the default priors.
 
-    Return
-    ------
+    Returns
+    =======
     prior: Prior
         Default prior distribution for that parameter, if unknown None is
         returned.

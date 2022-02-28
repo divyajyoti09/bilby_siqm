@@ -1,9 +1,6 @@
 import os
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.integrate import cumtrapz, quad
 from scipy.interpolate import interp1d, CubicSpline
-from scipy.optimize import minimize_scalar
 
 from .tov_solver import IntegrateTOV
 from ...core import utils
@@ -20,7 +17,7 @@ conversion_dict = {'pressure': {'cgs': C_SI ** 4. / G_SI * 10., 'si': C_SI ** 4.
                    'pseudo_enthalpy': {'dimensionless': 1.},
                    'mass': {'g': C_SI ** 2. / G_SI * 1000, 'kg': C_SI ** 2. / G_SI, 'geom': 1.,
                             'm_sol': C_SI ** 2. / G_SI / MSUN_SI},
-                   'radius': {'cm': 100., 'mass': 1., 'km': .001},
+                   'radius': {'cm': 100., 'm': 1., 'km': .001},
                    'tidal_deformability': {'geom': 1.}}
 
 
@@ -38,23 +35,27 @@ class TabularEOS(object):
     Given a valid eos input format, such as 2-D array, an ascii file, or a string, parse, and interpolate
 
     Parameters
-    ----------
-    eos (`numpy.ndarray`, `str`, ASCII TABLE):
+    ==========
+    eos: (numpy.ndarray, str, ASCII TABLE)
         if `numpy.ndarray` then user supplied pressure-density 2D numpy array.
         if `str` then given a valid eos name, relevant preshipped ASCII table will be loaded
-            if ASCII TABLE then given viable file extensions, which include .txt,.dat, etc (np.loadtxt used),
-            read in pressure density from file.
+        if ASCII TABLE then given viable file extensions, which include .txt,.dat, etc (np.loadtxt used),
+        read in pressure density from file.
+    sampling_flag: bool
+        Do you plan on sampling the parameterized EOS? Highly recommended. Defaults to False.
+    warning_flag: bool
+        Keeps track of status of various physical checks on EoS.
 
-    sampling_flag (`bool`): Do you plan on sampling the parameterized EOS? Highly recommended. Defaults to False.
-
-    warning_flag (`bool`): Keeps track of status of various physical checks on EoS.
-
-    Attributes:
-        msg (str): Human readable string describing the exception.
-        code (int): Exception error code.
+    Attributes
+    ==========
+    msg: str
+        Human readable string describing the exception.
+    code: int
+        Exception error code.
     """
 
     def __init__(self, eos, sampling_flag=False, warning_flag=False):
+        from scipy.integrate import cumtrapz
 
         self.sampling_flag = sampling_flag
         self.warning_flag = warning_flag
@@ -120,11 +121,15 @@ class TabularEOS(object):
         Find value of energy_from_pressure
         as in lalsimulation, return e = K * p**(3./5.) below min pressure
 
-        :param pressure (`float`): pressure in geometerized units.
-        :param interp_type (`str`): String specifying which interpolation type to use.
-                                    Currently implemented: 'CubicSpline', 'linear'.
-
-        :param energy_density (`float`): energy-density in geometerized units.
+        Parameters
+        ==========
+        pressure: float
+            pressure in geometerized units.
+        interp_type: str
+            String specifying which interpolation type to use.
+            Currently implemented: 'CubicSpline', 'linear'.
+        energy_density: float
+            energy-density in geometerized units.
         """
         pressure = np.atleast_1d(pressure)
         energy_returned = np.zeros(pressure.size)
@@ -373,7 +378,7 @@ class TabularEOS(object):
         Given a representation in the form 'energy_density-pressure', plot the EoS in that space.
 
         Parameters
-        ----------
+        ==========
         rep: str
             Representation to plot. For example, plotting in energy_density-pressure space,
             specify 'energy_density-pressure'
@@ -387,10 +392,11 @@ class TabularEOS(object):
             Specifies unit system to plot. Currently can plot in CGS:'cgs', SI:'si', or geometerized:'geom'
 
         Returns
-        -------
+        =======
         fig: matplotlib.figure.Figure
             EOS plot.
         """
+        import matplotlib.pyplot as plt
 
         # Set data based on specified representation
         varnames = rep.split('-')
@@ -474,7 +480,7 @@ class SpectralDecompositionEOS(TabularEOS):
     arXiv: 1009.0738v2. Inherits from TabularEOS.
 
     Parameters
-    ----------
+    ==========
     gammas: list
         List of adiabatic expansion parameters used
         to construct the equation of state in various
@@ -531,7 +537,7 @@ class SpectralDecompositionEOS(TabularEOS):
         return 1. / spectral_adiabatic_index(self.gammas, x)
 
     def mu(self, x):
-
+        from scipy.integrate import quad
         return np.exp(-quad(self.__mu_integrand, 0, x)[0])
 
     def __eps_integrand(self, x):
@@ -539,7 +545,7 @@ class SpectralDecompositionEOS(TabularEOS):
         return np.exp(x) * self.mu(x) / spectral_adiabatic_index(self.gammas, x)
 
     def energy_density(self, x, eps0):
-
+        from scipy.integrate import quad
         quad_result, quad_err = quad(self.__eps_integrand, 0, x)
         eps_of_x = (eps0 * C_CGS ** 2.) / self.mu(x) + self.p0 / self.mu(x) * quad_result
         return eps_of_x
@@ -615,19 +621,23 @@ class SpectralDecompositionEOS(TabularEOS):
 
 
 class EOSFamily(object):
+    """
+    Create a EOS family and get mass-radius information
 
-    """Create a EOS family and get mass-radius information
+    Parameters
+    ==========
+    eos: object
+        Supply a `TabularEOS` class (or subclass)
+    npts: float
+        Number of points to calculate for mass-radius relation. Default is 500.
 
-    Parameters:
-        eos (`object`): Supply a `TabularEOS` class (or subclass)
-        npts (`float`): Number of points to calculate for mass-radius relation.
-                        Default is 500.
-
-    Note:
-        The mass-radius and mass-k2 data should be
-        populated here via the TOV solver upon object construction.
-        """
+    Notes
+    =====
+    The mass-radius and mass-k2 data should be
+    populated here via the TOV solver upon object construction.
+    """
     def __init__(self, eos, npts=500):
+        from scipy.optimize import minimize_scalar
         self.eos = eos
 
         # FIXME: starting_energy_density is set somewhat arbitrarily
@@ -658,7 +668,7 @@ class EOSFamily(object):
         # If we're not at the end of the array, determine actual maximum mass. Else, assume
         # last point is the maximum mass and proceed.
         if i < (npts - 1):
-            # Now replace ith point with interpolated maximum mass
+            # Now replace with point with interpolated maximum mass
             # This is done by interpolating the last three points and then
             # minimizing the negative of the interpolated function
             x = [energy_density_grid[i - 2], energy_density_grid[i - 1], energy_density_grid[i]]
@@ -754,7 +764,7 @@ class EOSFamily(object):
         Given a representation in the form 'm-r', plot the family in that space.
 
         Parameters
-        ----------
+        ==========
         rep: str
             Representation to plot. For example, plotting in mass-radius space, specify 'm-r'
         xlim: list
@@ -767,10 +777,11 @@ class EOSFamily(object):
             Specifies unit system to plot. Currently can plot in CGS:'cgs', SI:'si', or geometerized:'geom'
 
         Returns
-        -------
+        =======
         fig: matplotlib.figure.Figure
             EOS Family plot.
         """
+        import matplotlib.pyplot as plt
 
         # Set data based on specified representation
         varnames = rep.split('-')

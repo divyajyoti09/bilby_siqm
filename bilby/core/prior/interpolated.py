@@ -1,9 +1,8 @@
 import numpy as np
-from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d
 
 from .base import Prior
-from bilby.core.utils import logger
+from ..utils import logger
 
 
 class Interped(Prior):
@@ -13,7 +12,7 @@ class Interped(Prior):
         """Creates an interpolated prior function from arrays of xx and yy=p(xx)
 
         Parameters
-        ----------
+        ==========
         xx: array_like
             x values for the to be interpolated prior function
         yy: array_like
@@ -32,7 +31,7 @@ class Interped(Prior):
             See superclass
 
         Attributes
-        ----------
+        ==========
         probability_density: scipy.interpolate.interp1d
             Interpolated prior probability distribution
         cumulative_distribution: scipy.interpolate.interp1d
@@ -69,11 +68,11 @@ class Interped(Prior):
         """Return the prior probability of val.
 
         Parameters
-        ----------
+        ==========
         val:  Union[float, int, array_like]
 
         Returns
-        -------
+        =======
          Union[float, array_like]: Prior probability of val
         """
         return self.probability_density(val)
@@ -87,7 +86,6 @@ class Interped(Prior):
 
         This maps to the inverse CDF. This is done using interpolation.
         """
-        self.test_valid_for_rescaling(val)
         rescaled = self.inverse_cumulative_distribution(val)
         if rescaled.shape == ():
             rescaled = float(rescaled)
@@ -102,7 +100,7 @@ class Interped(Prior):
         Yields an error if value is set below instantiated x-array minimum.
 
         Returns
-        -------
+        =======
         float: Minimum of the prior distribution
 
         """
@@ -125,7 +123,7 @@ class Interped(Prior):
         Yields an error if value is set above instantiated x-array maximum.
 
         Returns
-        -------
+        =======
         float: Maximum of the prior distribution
 
         """
@@ -146,7 +144,7 @@ class Interped(Prior):
         Updates the prior distribution if it is changed
 
         Returns
-        -------
+        =======
         array_like: p(xx) values
 
         """
@@ -164,6 +162,7 @@ class Interped(Prior):
         self._initialize_attributes()
 
     def _initialize_attributes(self):
+        from scipy.integrate import cumtrapz
         if np.trapz(self._yy, self.xx) != 1:
             logger.debug('Supplied PDF for {} is not normalised, normalising.'.format(self.name))
         self._yy /= np.trapz(self._yy, self.xx)
@@ -182,7 +181,7 @@ class FromFile(Interped):
         """Creates an interpolated prior function from arrays of xx and yy=p(xx) extracted from a file
 
         Parameters
-        ----------
+        ==========
         file_name: str
             Name of the file containing the xx and yy arrays
         minimum: float

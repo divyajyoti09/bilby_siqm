@@ -10,11 +10,33 @@
 # before the next stage begins
 
 stages:
+  - initial
   - test
+  - docs
   - deploy
 
+# ------------------- Initial stage -------------------------------------------
+
+# Check author list is up to date
+authors:
+  stage: initial
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+  script:
+    - python test/check_author_list.py
+
+# Test containers scripts are up to date
+containers:
+  stage: initial
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+  script:
+    - cd containers
+    - python write_dockerfiles.py #HACK
+    # Fail if differences exist. If this fails, you may need to run
+    # write_dockerfiles.py and commit the changes.
+    - git diff --exit-code
+
 .test-python: &test-python
-  stage: test
+  stage: initial
   image: python
   before_script:
     # this is required because pytables doesn't use a wheel on py37
@@ -22,136 +44,199 @@ stages:
     - apt-get -yqq install libhdf5-dev
   script:
     - python -m pip install .
+    - python -m pip list installed
     - python -c "import bilby"
+    - python -c "import bilby.bilby_mcmc"
     - python -c "import bilby.core"
     - python -c "import bilby.core.prior"
     - python -c "import bilby.core.sampler"
+    - python -c "import bilby.core.utils"
     - python -c "import bilby.gw"
     - python -c "import bilby.gw.detector"
+    - python -c "import bilby.gw.eos"
+    - python -c "import bilby.gw.likelihood"
     - python -c "import bilby.gw.sampler"
     - python -c "import bilby.hyper"
     - python -c "import cli_bilby"
+    - python test/import_test.py
     - for script in $(pip show -f bilby | grep "bin\/" | xargs -I {} basename {}); do
           ${script} --help;
       done
 
-# test basic setup on python3
-basic-3.7:
+basic-3.8:
   <<: *test-python
-  image: python:3.7
+  image: python:3.8
 
-# test example on python 3.7
-python-3.7:
+basic-3.9:
+  <<: *test-python
+  image: python:3.9
+
+basic-3.10:
+  <<: *test-python
+  image: python:3.10
+
+.precommits: &precommits
+  stage: initial
+  script:
+    - source activate $PYVERSION
+    - mkdir -p $CACHE_DIR
+    - pip install --upgrade pip
+    - pip --cache-dir=$CACHE_DIR install --upgrade bilby
+    - pip --cache-dir=$CACHE_DIR install .
+    - pip --cache-dir=$CACHE_DIR install pre-commit
+    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
+    - pre-commit run --all-files --verbose --show-diff-on-failure
+
+precommits-py3.8:
+  <<: *precommits
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python38
+  variables:
+    CACHE_DIR: ".pip38"
+    PYVERSION: "python38"
+
+precommits-py3.9:
+  <<: *precommits
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+  variables:
+    CACHE_DIR: ".pip39"
+    PYVERSION: "python39"
+
+# FIXME: when image builds for 3.10 change this back.
+#precommits-py3.10:
+#  <<: *precommits
+#  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python310
+#  variables:
+#    CACHE_DIR: ".pip310"
+#    PYVERSION: "python310"
+
+# ------------------- Test stage -------------------------------------------
+
+.unit-tests: &unit-test
   stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python37
   script:
     - python -m pip install .
+    - python -m pip list installed
 
-    # Run pyflakes
-    - flake8 .
-
-    # Run tests and collect coverage data
     - pytest --cov=bilby --durations 10
-    - coverage html
-    - coverage-badge -o coverage_badge.svg -f
 
+python-3.8:
+  <<: *unit-test
+  needs: ["basic-3.8", "precommits-py3.8"]
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python38
+
+python-3.9:
+  <<: *unit-test
+  needs: ["basic-3.9", "precommits-py3.9"]
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+  after_script:
+    - coverage html
+    - coverage xml
+  artifacts:
+    reports:
+      cobertura: coverage.xml
+    paths:
+      - htmlcov/
+    expire_in: 30 days
+
+# add back when 3.10 image is available
+#python-3.10:
+#  <<: *unit-test
+#  needs: ["basic-3.10", "precommits-py3.10"]
+#  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python310
+
+.test-sampler: &test-sampler
+  stage: test
+  script:
+    - python -m pip install .
+    - python -m pip list installed
+
+    - pytest test/integration/sampler_run_test.py --durations 10
+
+python-3.8-samplers:
+  <<: *test-sampler
+  needs: ["basic-3.8", "precommits-py3.8"]
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python38
+
+python-3.9-samplers:
+  <<: *test-sampler
+  needs: ["basic-3.9", "precommits-py3.9"]
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+
+# add back when 3.10 image is available
+#python-3.10-samplers:
+#  <<: *test-sampler
+#  needs: ["basic-3.10", "precommits-py3.10"]
+#  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python310
+
+integration-tests-python-3.9:
+  stage: test
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+  needs: ["basic-3.9", "precommits-py3.9"]
+  only:
+    - schedules
+  script:
+    - python -m pip install .
+    - python -m pip list installed
+    # Run tests which are only done on schedule
+    - pytest test/integration/example_test.py
+
+.plotting: &plotting
+  stage: test
+  only:
+    - schedules
+  script:
+    - python -m pip install .
+    - python -m pip list installed
+    - pytest test/gw/plot_test.py
+
+
+plotting-python-3.8:
+  <<: *plotting
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python38
+  needs: ["basic-3.8", "precommits-py3.8"]
+
+plotting-python-3.9:
+  <<: *plotting
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+  needs: ["basic-3.9", "precommits-py3.9"]
+
+# add back when 3.10 image is available
+#plotting-python-3.10:
+#  <<: *plotting
+#  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python310
+#  needs: ["basic-3.10", "precommits-py3.10"]
+
+# ------------------- Docs stage -------------------------------------------
+
+docs:
+  stage: docs
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
+  script:
     # Make the documentation
+    - apt-get -yqq install pandoc
+    - python -m pip install .
     - cd docs
+    - pip install ipykernel ipython jupyter
+    - cp ../examples/tutorials/*.ipynb ./
+    - rm basic_ptmcmc_tutorial.ipynb
+    - rm compare_samplers.ipynb
+    - rm visualising_the_results.ipynb
+    - jupyter nbconvert --to notebook --execute *.ipynb --inplace
     - make clean
     - make html
 
   artifacts:
     paths:
-      - htmlcov/
-      - coverage_badge.svg
       - docs/_build/html/
 
-# test example on python 3.8
-python-3.8:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python38
-  script:
-    - python -m pip install .
+# ------------------- Deploy stage -------------------------------------------
 
-    - pytest
-
-# test example on python 3.6
-python-3.6:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python36
-  script:
-    - python -m pip install .
-
-    - pytest
-
-# test samplers on python 3.7
-python-3.7-samplers:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python37
-  script:
-    - python -m pip install .
-
-    - pytest test/integration/sampler_run_test.py --durations 10
-    - pytest test/integration/sample_from_the_prior_test.py
-
-# test samplers on python 3.6
-python-3.6-samplers:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python36
-  script:
-    - python -m pip install .
-
-    - pytest test/integration/sampler_run_test.py
-
-# Test containers are up to date
-containers:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python37
-  script:
-    - cd containers
-    - python write_dockerfiles.py
-    # Fail if differences exist. If this fails, you may need to run
-    # write_dockerfiles.py and commit the changes.
-    - git diff --exit-code
-
-# Tests run at a fixed schedule rather than on push
-scheduled-python-3.7:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python37
-  only:
-    - schedules
-  script:
-    - python -m pip install .
-
-    # Run tests which are only done on schedule
-    - pytest test/integration/example_test.py
-    - pytest test/integration/sample_from_the_prior_test.py
-
-plotting:
-  stage: test
-  image: bilbydev/bilby-test-suite-python37
-  only:
-    - schedules
-  script:
-    - python -m pip install .
-    - python -m pip install ligo.skymap
-
-    - pytest test/gw/plot_test.py
-
-authors:
-  stage: test
-  image: bilbydev/bilby-test-suite-python37
-  script:
-    - python test/check_author_list.py
-
-pages:
+deploy-docs:
   stage: deploy
-  dependencies:
-    - python-3.7
+  needs: ["docs", "python-3.9"]
   script:
     - mkdir public/
     - mv htmlcov/ public/
-    - mv coverage_badge.svg public/
     - mv docs/_build/html/* public/
   artifacts:
     paths:
@@ -160,9 +245,38 @@ pages:
   only:
     - master
 
-deploy_release:
+.build-container: &build-container
   stage: deploy
-  image: bilbydev/v2-dockerfile-test-suite-python37
+  image: docker:20.10.12
+  needs: ["containers"]
+  only:
+    - schedules
+  script:
+    - cd containers
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --tag v3-bilby-$PYVERSION - < v3-dockerfile-test-suite-$PYVERSION
+    - docker image tag v3-bilby-$PYVERSION containers.ligo.org/lscsoft/bilby/v2-bilby-$PYVERSION:latest
+    - docker image push containers.ligo.org/lscsoft/bilby/v2-bilby-$PYVERSION:latest
+
+build-python38-container:
+  <<: *build-container
+  variables:
+    PYVERSION: "python38"
+
+build-python39-container:
+  <<: *build-container
+  variables:
+    PYVERSION: "python39"
+
+# add back when 3.10 image is available
+#build-python310-container:
+#  <<: *build-container
+#  variables:
+#    PYVERSION: "python310"
+
+pypi-release:
+  stage: deploy
+  image: containers.ligo.org/lscsoft/bilby/v2-bilby-python39
   variables:
     TWINE_USERNAME: $PYPI_USERNAME
     TWINE_PASSWORD: $PYPI_PASSWORD
@@ -172,19 +286,4 @@ deploy_release:
   script:
     - twine upload dist/*
   only:
-  - tags
-
-
-precommits-py3.7:
-  stage: test
-  image: bilbydev/v2-dockerfile-test-suite-python37
-  script:
-    - source activate python37
-    - mkdir -p .pip37
-    - pip install --upgrade pip
-    - pip --cache-dir=.pip37 install --upgrade bilby
-    - pip --cache-dir=.pip37 install .
-    - pip --cache-dir=.pip37 install pre-commit
-
-    # Run precommits (flake8, spellcheck, isort, no merge conflicts, etc)
-    - pre-commit run --all-files --verbose --show-diff-on-failure
+    - tags

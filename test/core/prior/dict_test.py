@@ -1,8 +1,8 @@
 import os
 import unittest
+from unittest.mock import Mock
 
 import numpy as np
-from mock import Mock
 
 import bilby
 
@@ -41,11 +41,6 @@ class TestPriorDict(unittest.TestCase):
         priors = bilby.core.prior.PriorDict(self.priors)
         self.assertEqual(priors, priors.copy())
 
-    def test_prior_set(self):
-        priors_dict = bilby.core.prior.PriorDict(self.priors)
-        priors_set = bilby.core.prior.PriorSet(self.priors)
-        self.assertEqual(priors_dict, priors_set)
-
     def test_prior_set_is_dict(self):
         self.assertIsInstance(self.prior_set_from_dict, dict)
 
@@ -71,7 +66,7 @@ class TestPriorDict(unittest.TestCase):
                 name="chirp_mass",
                 minimum=25,
                 maximum=100,
-                latex_label="$\mathcal{M}$",
+                latex_label=r"$\mathcal{M}$",
             ),
             mass_ratio=bilby.core.prior.Uniform(
                 name="mass_ratio",
@@ -181,7 +176,7 @@ class TestPriorDict(unittest.TestCase):
                     name="chirp_mass",
                     minimum=25,
                     maximum=100,
-                    latex_label="$\mathcal{M}$",
+                    latex_label=r"$\mathcal{M}$",
                 ),
                 mass_ratio=bilby.core.prior.Uniform(
                     name="mass_ratio",
@@ -301,6 +296,20 @@ class TestPriorDict(unittest.TestCase):
                     keys=self.prior_set_from_dict.keys(), theta=theta
                 )
             ),
+        )
+
+    def test_cdf(self):
+        """
+        Test that the CDF method is the inverse of the rescale method.
+
+        Note that the format of inputs/outputs is different between the two methods.
+        """
+        sample = self.prior_set_from_dict.sample()
+        self.assertEqual(
+            self.prior_set_from_dict.rescale(
+                sample.keys(),
+                self.prior_set_from_dict.cdf(sample=sample).values()
+            ), list(sample.values())
         )
 
     def test_redundancy(self):

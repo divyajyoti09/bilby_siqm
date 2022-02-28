@@ -1,7 +1,6 @@
 import shutil
 import unittest
-
-from mock import MagicMock
+from unittest.mock import MagicMock
 
 import bilby
 
@@ -44,7 +43,7 @@ class TestUltranest(unittest.TestCase):
             log_interval=None,
             dlogz=None,
             max_iters=None,
-            update_interval_iter_fraction=0.2,
+            update_interval_volume_fraction=0.2,
             viz_callback=None,
             dKL=0.5,
             frac_remain=0.01,
@@ -79,7 +78,7 @@ class TestUltranest(unittest.TestCase):
             log_interval=None,
             dlogz=None,
             max_iters=None,
-            update_interval_iter_fraction=0.2,
+            update_interval_volume_fraction=0.2,
             viz_callback=None,
             dKL=0.5,
             frac_remain=0.01,

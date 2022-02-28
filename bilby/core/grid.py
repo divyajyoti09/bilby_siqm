@@ -1,14 +1,13 @@
-from __future__ import division
+import json
+import os
 
 import numpy as np
-import os
-import json
-from collections import OrderedDict
 
 from .prior import Prior, PriorDict
-from .utils import (logtrapzexp, check_directory_exists_and_if_not_mkdir,
-                    logger)
-from .utils import BilbyJsonEncoder, load_json, move_old_file
+from .utils import (
+    logtrapzexp, check_directory_exists_and_if_not_mkdir, logger,
+    BilbyJsonEncoder, load_json, move_old_file
+)
 from .result import FileMovedError
 
 
@@ -16,7 +15,7 @@ def grid_file_name(outdir, label, gzip=False):
     """ Returns the standard filename used for a grid file
 
     Parameters
-    ----------
+    ==========
     outdir: str
         Name of the output directory
     label: str
@@ -25,7 +24,7 @@ def grid_file_name(outdir, label, gzip=False):
         Set to True to append `.gz` to the extension for saving in gzipped format
 
     Returns
-    -------
+    =======
     str: File name of the output file
     """
     if gzip:
@@ -41,7 +40,7 @@ class Grid(object):
         """
 
         Parameters
-        ----------
+        ==========
         likelihood: bilby.likelihood.Likelihood
         priors: bilby.prior.PriorDict
         grid_size: int, list, dict
@@ -114,7 +113,7 @@ class Grid(object):
         Marginalize over a list of parameters.
 
         Parameters
-        ----------
+        ==========
         log_array: array_like
             A :class:`numpy.ndarray` of log likelihood/posterior values.
         parameters: list, str
@@ -125,7 +124,7 @@ class Grid(object):
             the set of parameter to *not* marginalize over.
 
         Returns
-        -------
+        =======
         out_array: array_like
             An array containing the marginalized log likelihood/posterior.
         """
@@ -164,7 +163,7 @@ class Grid(object):
         Marginalize the log likelihood/posterior over a single given parameter.
 
         Parameters
-        ----------
+        ==========
         log_array: array_like
             A :class:`numpy.ndarray` of log likelihood/posterior values.
         name: str
@@ -173,7 +172,7 @@ class Grid(object):
             A list of parameter names that have not been marginalized over.
 
         Returns
-        -------
+        =======
         out: array_like
             An array containing the marginalized log likelihood/posterior.
         """
@@ -191,8 +190,10 @@ class Grid(object):
         places = self.sample_points[name]
 
         if len(places) > 1:
+            dx = np.diff(places)
             out = np.apply_along_axis(
-                logtrapzexp, axis, log_array, places[1] - places[0])
+                logtrapzexp, axis, log_array, dx
+            )
         else:
             # no marginalisation required, just remove the singleton dimension
             z = log_array.shape
@@ -220,14 +221,14 @@ class Grid(object):
         ln likelihood will be fully marginalized over.
 
         Parameters
-        ----------
+        ==========
         parameters: str, list, optional
             Name of, or list of names of, the parameter(s) to marginalize over.
         not_parameters: str, optional
             Name of, or list of names of, the parameter(s) to not marginalize over.
 
         Returns
-        -------
+        =======
         array-like:
             The marginalized ln likelihood.
         """
@@ -241,14 +242,14 @@ class Grid(object):
         ln posterior will be fully marginalized over.
 
         Parameters
-        ----------
+        ==========
         parameters: str, list, optional
             Name of, or list of names of, the parameter(s) to marginalize over.
         not_parameters: str, optional
             Name of, or list of names of, the parameter(s) to not marginalize over.
 
         Returns
-        -------
+        =======
         array-like:
             The marginalized ln posterior.
         """
@@ -262,14 +263,14 @@ class Grid(object):
         likelihood will be fully marginalized over.
 
         Parameters
-        ----------
+        ==========
         parameters: str, list, optional
             Name of, or list of names of, the parameter(s) to marginalize over.
         not_parameters: str, optional
             Name of, or list of names of, the parameter(s) to not marginalize over.
 
         Returns
-        -------
+        =======
         array-like:
             The marginalized likelihood.
         """
@@ -285,14 +286,14 @@ class Grid(object):
         posterior will be fully marginalized over.
 
         Parameters
-        ----------
+        ==========
         parameters: str, list, optional
             Name of, or list of names of, the parameter(s) to marginalize over.
         not_parameters: str, optional
             Name of, or list of names of, the parameter(s) to not marginalize over.
 
         Returns
-        -------
+        =======
         array-like:
             The marginalized posterior.
         """
@@ -350,7 +351,7 @@ class Grid(object):
             'label', 'outdir', 'parameter_names', 'n_dims', 'priors',
             'sample_points', 'ln_likelihood', 'ln_evidence',
             'ln_noise_evidence']
-        dictionary = OrderedDict()
+        dictionary = dict()
         for attr in save_attrs:
             try:
                 dictionary[attr] = getattr(self, attr)
@@ -377,7 +378,7 @@ class Grid(object):
         Writes the Grid to a file.
 
         Parameters
-        ----------
+        ==========
         filename: str, optional
             Filename to write to (overwrites the default)
         overwrite: bool, optional
@@ -420,7 +421,7 @@ class Grid(object):
         """ Read in a saved .json grid file
 
         Parameters
-        ----------
+        ==========
         filename: str
             If given, try to load from this filename
         outdir, label: str
@@ -431,11 +432,11 @@ class Grid(object):
             extension)
 
         Returns
-        -------
+        =======
         grid: bilby.core.grid.Grid
 
         Raises
-        -------
+        ======
         ValueError: If no filename is given and either outdir or label is None
                     If no bilby.core.grid.Grid is found in the path
 

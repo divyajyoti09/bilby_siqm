@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division
 import bilby
 import unittest
 import numpy as np
@@ -239,11 +238,6 @@ class TestPriorClasses(unittest.TestCase):
             self.assertTrue(
                 all((many_samples >= prior.minimum) & (many_samples <= prior.maximum))
             )
-
-    def test_out_of_bounds_rescaling(self):
-        """Test the the rescaling works as expected."""
-        for prior in self.priors:
-            self.assertRaises(ValueError, lambda: prior.rescale(-1))
 
     def test_least_recently_sampled(self):
         for prior in self.priors:
@@ -666,17 +660,6 @@ class TestPriorClasses(unittest.TestCase):
             name="test", unit="unit", alpha=0, minimum=0, maximum=1
         )
         prior_2.other_key = 5
-        self.assertNotEqual(prior_1, prior_2)
-
-    def test_np_array_eq(self):
-        prior_1 = bilby.core.prior.PowerLaw(
-            name="test", unit="unit", alpha=0, minimum=0, maximum=1
-        )
-        prior_2 = bilby.core.prior.PowerLaw(
-            name="test", unit="unit", alpha=0, minimum=0, maximum=1
-        )
-        prior_1.array_attribute = np.array([1, 2, 3])
-        prior_2.array_attribute = np.array([2, 2, 3])
         self.assertNotEqual(prior_1, prior_2)
 
     def test_repr(self):
