@@ -1251,7 +1251,6 @@ class ROQGravitationalWaveTransient(GravitationalWaveTransient):
         - e.g., "H1": sample in the time of arrival at H1
 
     """
-
     def __init__(
         self, interferometers, waveform_generator, priors,
         weights=None, linear_matrix=None, quadratic_matrix=None,

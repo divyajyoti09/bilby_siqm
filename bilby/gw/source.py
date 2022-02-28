@@ -22,7 +22,8 @@ except ImportError:
 def lal_siqm(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
         phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, dQuadMon1, dQuadMon2, **kwargs):
-    """ A Binary Black Hole waveform model using lalsimulation
+    """ Introducing spin-induced quadrupole moment terms (dQuadMon1 and dQuadMon2)
+        to the lal_binary_black_hole source  model using lalsimulation
 
     Parameters
     ----------
@@ -1068,12 +1069,12 @@ def sinegaussian(frequency_array, hrss, Q, frequency, **kwargs):
     h_plus = ((hrss / np.sqrt(temp * (1 + np.exp(-Q**2)))) *
               ((np.sqrt(np.pi) * tau) / 2.0) *
               (np.exp(-fm**2 * np.pi**2 * tau**2) +
-               np.exp(-fp**2 * np.pi**2 * tau**2)))
+              np.exp(-fp**2 * np.pi**2 * tau**2)))
 
     h_cross = (-1j * (hrss / np.sqrt(temp * (1 - np.exp(-Q**2)))) *
                ((np.sqrt(np.pi) * tau) / 2.0) *
                (np.exp(-fm**2 * np.pi**2 * tau**2) -
-                np.exp(-fp**2 * np.pi**2 * tau**2)))
+               np.exp(-fp**2 * np.pi**2 * tau**2)))
 
     return{'plus': h_plus, 'cross': h_cross}
 
