@@ -99,9 +99,9 @@ def lal_siqm(
     wf_dict = waveform_kwargs.get("lal_waveform_dictionary", lal.CreateDict())
 
     if dQuadMon1 != 0.:
-        lalsimulation.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
+        lalsim.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
     if dQuadMon2 != 0.:
-        lalsimulation.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
+        lalsim.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
 
     waveform_kwargs["lal_waveform_dictionary"] = wf_dict
 
@@ -1210,12 +1210,12 @@ def sinegaussian(frequency_array, hrss, Q, frequency, **kwargs):
     h_plus = ((hrss / np.sqrt(temp * (1 + np.exp(-Q**2)))) *
               ((np.sqrt(np.pi) * tau) / 2.0) *
               (np.exp(-fm**2 * np.pi**2 * tau**2) +
-               np.exp(-fp**2 * np.pi**2 * tau**2)))
+              np.exp(-fp**2 * np.pi**2 * tau**2)))
 
     h_cross = (-1j * (hrss / np.sqrt(temp * (1 - np.exp(-Q**2)))) *
                ((np.sqrt(np.pi) * tau) / 2.0) *
                (np.exp(-fm**2 * np.pi**2 * tau**2) -
-                np.exp(-fp**2 * np.pi**2 * tau**2)))
+               np.exp(-fp**2 * np.pi**2 * tau**2)))
 
     return {'plus': h_plus, 'cross': h_cross}
 
@@ -1314,8 +1314,6 @@ def supernova_pca_model(
     h_cross = scaling * strain
 
     return {'plus': h_plus, 'cross': h_cross}
-
-
 precession_only = {
     "tilt_1", "tilt_2", "phi_12", "phi_jl", "chi_1_in_plane", "chi_2_in_plane",
 }

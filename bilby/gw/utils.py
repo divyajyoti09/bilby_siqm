@@ -779,7 +779,6 @@ def lalsim_SimInspiralWaveformParamsInsertTidalLambda1(
         waveform_dictionary, lambda_1)
 
 
-
 def lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
         waveform_dictionary, dQuadMon1):
     try:
@@ -791,7 +790,6 @@ def lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
         waveform_dictionary, dQuadMon1)
 
 
-
 def lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
         waveform_dictionary, dQuadMon2):
     try:
@@ -801,6 +799,7 @@ def lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
 
     return lalsim.SimInspiralWaveformParamsInsertdQuadMon2(
         waveform_dictionary, dQuadMon2)
+
 
 def lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
         waveform_dictionary, lambda_2):
