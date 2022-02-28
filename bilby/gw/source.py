@@ -244,6 +244,7 @@ def lal_eccentric_binary_black_hole_no_spins(
         eccentricity=eccentricity, **waveform_kwargs)
 
 
+
 def _base_lal_cbc_fd_waveform(
         frequency_array, mass_1, mass_2, luminosity_distance, theta_jn, phase,
         a_1=0.0, a_2=0.0, tilt_1=0.0, tilt_2=0.0, phi_12=0.0, phi_jl=0.0,
@@ -414,6 +415,8 @@ def _base_lal_cbc_fd_waveform(
         h_cross[frequency_bounds] *= time_shift
 
     return dict(plus=h_plus, cross=h_cross)
+
+
 
 
 def binary_black_hole_roq(
