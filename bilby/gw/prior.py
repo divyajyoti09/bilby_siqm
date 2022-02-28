@@ -345,7 +345,6 @@ class UniformSourceFrame(Cosmological):
         p_dz = self.cosmology.differential_comoving_volume(zs).value / (1 + zs)
         return zs, p_dz
 
-
 class UniformInComponentsChirpMass(PowerLaw):
     r"""
     Prior distribution for chirp mass which is uniform in component masses.
@@ -380,7 +379,6 @@ class UniformInComponentsChirpMass(PowerLaw):
         super(UniformInComponentsChirpMass, self).__init__(
             alpha=1., minimum=minimum, maximum=maximum,
             name=name, latex_label=latex_label, unit=unit, boundary=boundary)
-
 
 class WrappedInterp1d(interp1d):
     """ A wrapper around scipy interp1d which sets equality-by-instantiation """
@@ -460,6 +458,7 @@ class UniformInComponentsMassRatio(Prior):
     def ln_prob(self, val):
         with np.errstate(divide="ignore"):
             return np.log(self.prob(val))
+
 
 
 class AlignedSpin(Interped):
