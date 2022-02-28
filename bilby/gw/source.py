@@ -98,7 +98,6 @@ def lal_siqm(
     waveform_kwargs.update(kwargs)
     wf_dict = waveform_kwargs.get("lal_waveform_dictionary", lal.CreateDict())
 
-
     lalsim.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
     lalsim.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
 
@@ -1073,12 +1072,12 @@ def sinegaussian(frequency_array, hrss, Q, frequency, **kwargs):
     h_plus = ((hrss / np.sqrt(temp * (1 + np.exp(-Q**2)))) *
               ((np.sqrt(np.pi) * tau) / 2.0) *
               (np.exp(-fm**2 * np.pi**2 * tau**2) +
-              np.exp(-fp**2 * np.pi**2 * tau**2)))
+               np.exp(-fp**2 * np.pi**2 * tau**2)))
 
     h_cross = (-1j * (hrss / np.sqrt(temp * (1 - np.exp(-Q**2)))) *
                ((np.sqrt(np.pi) * tau) / 2.0) *
                (np.exp(-fm**2 * np.pi**2 * tau**2) -
-               np.exp(-fp**2 * np.pi**2 * tau**2)))
+                np.exp(-fp**2 * np.pi**2 * tau**2)))
 
     return{'plus': h_plus, 'cross': h_cross}
 

@@ -308,7 +308,7 @@ def convert_to_lal_siqm_parameters(parameters):
     added_keys: list
         keys which are added to parameters during function call
     """
-    
+
     converted_parameters, added_keys =\
         convert_to_lal_binary_black_hole_parameters(parameters)
 
@@ -579,9 +579,6 @@ def dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(dQuadMon1, dQuadMon2):
     dQuadMonS = 0.5 * (dQuadMon1 + dQuadMon2)
     dQuadMonA = 0.5 * (dQuadMon1 - dQuadMon2)
     return dQuadMonS, dQuadMonA
-
-
-
 
 
 def dquadmons_and_dquadmona_to_dquadmon1_and_dquadmon2(dQuadMonS, dQuadMonA):
