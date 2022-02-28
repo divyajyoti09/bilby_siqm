@@ -766,6 +766,3 @@ First `pip` installable version https://pypi.org/project/BILBY/ .
 - Examples of searches for gravitational waves from a Supernova and using a sine-Gaussian.
 - A `PriorSet` to handle sets of priors and allows reading in from a standardised prior file (see https://lscsoft.docs.ligo.org/bilby/prior.html).
 - A standardised file for storing detector data.
-
-### Removed
-- All chainconsumer dependency as this was causing issues.
