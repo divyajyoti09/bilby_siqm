@@ -1,7 +1,6 @@
 import numpy as np
 from lal import CreateDict
 import lalsimulation
-
 from ..core import utils
 from ..core.utils import logger
 from .conversion import bilby_to_lalsimulation_spins
@@ -20,8 +19,8 @@ try:
 except ImportError:
     logger.debug("You do not have lalsuite installed currently. You will"
                  " not be able to use some of the prebuilt functions.")
-                 
-                 
+
+
 def lal_siqm(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
         phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, dQuadMon1, dQuadMon2, **kwargs):
@@ -98,12 +97,12 @@ def lal_siqm(
         pn_phase_order=-1, pn_amplitude_order=0)
     waveform_kwargs.update(kwargs)
     wf_dict = waveform_kwargs.get("lal_waveform_dictionary", CreateDict())
-    
+
     if dQuadMon1 != 0.:
         lalsimulation.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
     if dQuadMon2 != 0.:
         lalsimulation.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
-        
+
     waveform_kwargs["lal_waveform_dictionary"] = wf_dict
 
     return _base_lal_cbc_fd_waveform(
@@ -120,7 +119,8 @@ def lal_siqm(
         theta_jn=theta_jn,
         phase=phase,
         **waveform_kwargs
-        )
+    )
+
 
 def lal_siqm(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
