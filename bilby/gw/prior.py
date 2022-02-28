@@ -382,6 +382,7 @@ class UniformInComponentsChirpMass(PowerLaw):
 
 class WrappedInterp1d(interp1d):
     """ A wrapper around scipy interp1d which sets equality-by-instantiation """
+
     def __eq__(self, other):
 
         for key in self.__dict__:
@@ -963,15 +964,13 @@ class BBHPriorDict(CBCPriorDict):
         spin_azimuth_parameters = {'phi_1', 'phi_2', 'phi_12', 'phi_jl'}
         inclination_parameters = {'theta_jn', 'cos_theta_jn'}
         distance_parameters = {'luminosity_distance', 'comoving_distance', 'redshift'}
-        siqm_parameters_1 = {'dQuadMon1','dQuadMon2','dQuadMonS','dQuadMonA'}
-        
-       
+        siqm_parameters_1 = {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
 
         for independent_parameters, parameter_set in \
-                zip([2, 2, 1, 1, 1, 1,2],
+                zip([2, 2, 1, 1, 1, 1, 2],
                     [mass_parameters, spin_azimuth_parameters,
                      spin_tilt_1_parameters, spin_tilt_2_parameters,
-                     inclination_parameters, distance_parameters,siqm_parameters_1]):
+                     inclination_parameters, distance_parameters, siqm_parameters_1]):
             if key in parameter_set:
                 if len(parameter_set.intersection(
                         sampling_parameters)) >= independent_parameters:
@@ -1060,7 +1059,7 @@ class BNSPriorDict(CBCPriorDict):
 
         tidal_parameters = \
             {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda_tilde'}
-            
+
         siqm_parameters = \
             {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
 
@@ -1075,7 +1074,7 @@ class BNSPriorDict(CBCPriorDict):
             elif len(tidal_parameters.intersection(sampling_parameters)) == 2:
                 redundant = True
         return redundant
-        
+
         if key in siqm_parameters:
             if len(siqm_parameters.intersection(sampling_parameters)) > 2:
                 redundant = True
@@ -1376,6 +1375,7 @@ class HealPixMapPriorDist(BaseJointPriorDist):
     PriorDist : `bilby.gw.prior.HealPixMapPriorDist`
         A JointPriorDist object to store the joint prior distribution according to passed healpix map
     """
+
     def __init__(self, hp_file, names=None, bounds=None, distance=False):
         self.hp = self._check_imports()
         self.hp_file = hp_file
