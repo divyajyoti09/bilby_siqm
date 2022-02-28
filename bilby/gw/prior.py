@@ -800,12 +800,15 @@ class BBHPriorDict(CBCPriorDict):
         spin_azimuth_parameters = {'phi_1', 'phi_2', 'phi_12', 'phi_jl'}
         inclination_parameters = {'theta_jn', 'cos_theta_jn'}
         distance_parameters = {'luminosity_distance', 'comoving_distance', 'redshift'}
+        siqm_parameters_1 = {'dQuadMon1','dQuadMon2','dQuadMonS','dQuadMonA'}
+        
+       
 
         for independent_parameters, parameter_set in \
-                zip([2, 2, 1, 1, 1, 1],
+                zip([2, 2, 1, 1, 1, 1,2],
                     [mass_parameters, spin_azimuth_parameters,
                      spin_tilt_1_parameters, spin_tilt_2_parameters,
-                     inclination_parameters, distance_parameters]):
+                     inclination_parameters, distance_parameters,siqm_parameters_1]):
             if key in parameter_set:
                 if len(parameter_set.intersection(
                         sampling_parameters)) >= independent_parameters:
@@ -892,6 +895,9 @@ class BNSPriorDict(CBCPriorDict):
 
         tidal_parameters = \
             {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda_tilde'}
+            
+        siqm_parameters = \
+            {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
 
         if key in tidal_parameters:
             if len(tidal_parameters.intersection(sampling_parameters)) > 2:
@@ -902,6 +908,18 @@ class BNSPriorDict(CBCPriorDict):
                                .format(tidal_parameters.intersection(self)))
                 logger.disabled = False
             elif len(tidal_parameters.intersection(sampling_parameters)) == 2:
+                redundant = True
+        return redundant
+        
+        if key in siqm_parameters:
+            if len(siqm_parameters.intersection(sampling_parameters)) > 2:
+                redundant = True
+                logger.disabled = disable_logging
+                logger.warning('{} already in prior. '
+                               'This may lead to unexpected behaviour.'
+                               .format(siqm_parameters.intersection(self)))
+                logger.disabled = False
+            elif len(siqm_parameters.intersection(sampling_parameters)) == 2:
                 redundant = True
         return redundant
 
@@ -945,7 +963,12 @@ Prior._default_latex_labels = {
     'chi_2': r'$\chi_2$',
     'chi_1_in_plane': r'$\chi_{1, \perp}$',
     'chi_2_in_plane': r'$\chi_{2, \perp}$',
-}
+    'dQuadMon1': '$\delta\kappa_1$',
+    'dQuadMon2': '$\delta\kappa_2$',
+    'dQuadMonS': '$\delta\kappa_s$',
+    'dQuadMonA': '$\delta\kappa_a$',
+    'chi_1': '$\\chi_1$',
+    'chi_2': '$\\chi_2$'}
 
 
 class CalibrationPriorDict(PriorDict):
