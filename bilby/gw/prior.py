@@ -291,30 +291,6 @@ class UniformSourceFrame(Cosmological):
         return zs, p_dz
 
 
-class UniformInComponentsChirpMass(PowerLaw):
-
-    def __init__(self, minimum, maximum, name='chirp_mass',
-                 latex_label=r'$\mathcal{M}$', unit=None, boundary=None):
-        """
-        Prior distribution for chirp mass which is uniform in component masses.
-
-        This is useful when chirp mass and mass ratio are sampled while the
-        prior is uniform in component masses.
-
-        Parameters
-        ==========
-        minimum : float
-            The minimum of chirp mass
-        maximum : float
-            The maximum of chirp mass
-        name: see superclass
-        latex_label: see superclass
-        unit: see superclass
-        boundary: see superclass
-        """
-        super(UniformInComponentsChirpMass, self).__init__(
-            alpha=1., minimum=minimum, maximum=maximum,
-            name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
 class WrappedInterp1d(interp1d):
     """ A wrapper around scipy interp1d which sets equality-by-instantiation """
@@ -360,6 +336,15 @@ class UniformInComponentsMassRatio(Prior):
         self.icdf = WrappedInterp1d(
             self.cdf(qs), qs, kind='cubic',
             bounds_error=False, fill_value=(minimum, maximum))
+
+    @staticmethod
+    def _integral(q):
+        return -5. * q**(-1. / 5.) * hyp2f1(-2. / 5., -1. / 5., 4. / 5., -q)
+
+    def cdf(self, val):
+        return (self._integral(val) - self._integral(self.minimum)) / self.norm
+
+    def rescale(self, val):
         resc = self.icdf(val)
         if resc.ndim == 0:
             return resc.item()
@@ -375,6 +360,7 @@ class UniformInComponentsMassRatio(Prior):
     def ln_prob(self, val):
         with np.errstate(divide="ignore"):
             return np.log(self.prob(val))
+
 
 
 class AlignedSpin(Interped):
