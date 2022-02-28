@@ -722,6 +722,7 @@ def gw_data_find(observatory, gps_start_time, duration, calibration,
 
 
 def build_roq_weights(data, basis, deltaF):
+
     """
     For a data array and reduced basis compute roq weights
 
