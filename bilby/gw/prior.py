@@ -332,7 +332,6 @@ class WrappedInterp1d(interp1d):
 
 class WrappedInterp1d(interp1d):
     """ A wrapper around scipy interp1d which sets equality-by-instantiation """
-
     def __eq__(self, other):
 
         for key in self.__dict__:
@@ -1210,7 +1209,6 @@ class HealPixMapPriorDist(BaseJointPriorDist):
     PriorDist : `bilby.gw.prior.HealPixMapPriorDist`
         A JointPriorDist object to store the joint prior distribution according to passed healpix map
     """
-
     def __init__(self, hp_file, names=None, bounds=None, distance=False):
         self.hp = self._check_imports()
         self.hp_file = hp_file
