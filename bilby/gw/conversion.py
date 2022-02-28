@@ -539,7 +539,7 @@ def total_mass_and_mass_ratio_to_component_masses(mass_ratio, total_mass):
 
 def dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(dQuadMonS, dQuadMonA):
     """
-    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
+    Convert symmetric and anti-symmetric combinations of spin-induced quadrupole moment parameters to that of binary components.
 
     Parameters
     ----------
@@ -563,7 +563,7 @@ def dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(dQuadMonS, dQuadMonA):
 
 def dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(dQuadMon1, dQuadMon2):
     """
-    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
+    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations keeping anti-symmetric combination to zero.
 
     Parameters
     ----------
