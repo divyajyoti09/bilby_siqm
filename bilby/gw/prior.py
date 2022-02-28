@@ -916,7 +916,7 @@ class BNSPriorDict(CBCPriorDict):
 
         tidal_parameters = \
             {'lambda_1', 'lambda_2', 'lambda_tilde', 'delta_lambda_tilde'}
-            
+
         siqm_parameters = \
             {'dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA'}
 
@@ -934,7 +934,7 @@ class BNSPriorDict(CBCPriorDict):
             elif len(tidal_parameters.intersection(sampling_parameters)) == 2:
                 redundant = True
         return redundant
-        
+
         if key in siqm_parameters:
             if len(siqm_parameters.intersection(sampling_parameters)) > 2:
                 redundant = True
