@@ -316,7 +316,6 @@ class UniformInComponentsChirpMass(PowerLaw):
             alpha=1., minimum=minimum, maximum=maximum,
             name=name, latex_label=latex_label, unit=unit, boundary=boundary)
 
-
 class WrappedInterp1d(interp1d):
     """ A wrapper around scipy interp1d which sets equality-by-instantiation """
     def __eq__(self, other):
@@ -361,15 +360,6 @@ class UniformInComponentsMassRatio(Prior):
         self.icdf = WrappedInterp1d(
             self.cdf(qs), qs, kind='cubic',
             bounds_error=False, fill_value=(minimum, maximum))
-
-    @staticmethod
-    def _integral(q):
-        return -5. * q**(-1. / 5.) * hyp2f1(-2. / 5., -1. / 5., 4. / 5., -q)
-
-    def cdf(self, val):
-        return (self._integral(val) - self._integral(self.minimum)) / self.norm
-
-    def rescale(self, val):
         resc = self.icdf(val)
         if resc.ndim == 0:
             return resc.item()
