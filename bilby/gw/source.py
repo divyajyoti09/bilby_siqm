@@ -1,5 +1,7 @@
 import numpy as np
 from ..core import utils
+from lal import CreateDict
+import lalsimulation 
 from ..core.utils import logger
 from .conversion import bilby_to_lalsimulation_spins
 from .utils import (lalsim_GetApproximantFromString,
@@ -99,8 +101,8 @@ def lal_siqm(
     waveform_kwargs.update(kwargs)
     wf_dict = waveform_kwargs.get("lal_waveform_dictionary", lal.CreateDict())
 
-    lalsim.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
-    lalsim.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
+    lalsimulation.SimInspiralWaveformParamsInsertdQuadMon1(wf_dict, float(dQuadMon1))
+    lalsimulation.SimInspiralWaveformParamsInsertdQuadMon2(wf_dict, float(dQuadMon2))
 
     waveform_kwargs["lal_waveform_dictionary"] = wf_dict
 
