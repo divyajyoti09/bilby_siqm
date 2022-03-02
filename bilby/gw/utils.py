@@ -1,7 +1,7 @@
 import json
 import os
 from math import fmod
-import lalsimulation as lalasim
+import lalsimulation as lalsim
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.special import i0e
