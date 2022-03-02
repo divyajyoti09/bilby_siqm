@@ -328,7 +328,6 @@ def convert_to_lal_siqm_parameters(parameters):
 
 
 def convert_to_lal_binary_neutron_star_parameters(parameters):
->>>>>>> 45ae594c... commiting conversion.py source.py and prior.py
     """
     Convert parameters we have into parameters we need.
 
@@ -1499,5 +1498,3 @@ def fill_sample(args):
     else:
         return new_sample["geocent_time"], new_sample["luminosity_distance"],\
             new_sample["phase"], new_sample['recalib_index']
-=======
->>>>>>> e7c1c551... removing all previous commits
