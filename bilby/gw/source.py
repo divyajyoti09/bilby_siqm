@@ -210,7 +210,7 @@ def lal_binary_black_hole(
 
 def lal_binary_neutron_star(
         frequency_array, mass_1, mass_2, luminosity_distance, a_1, tilt_1,
-        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, lambda_1, lambda_2,dQuadMon1,dQuadMon2,
+        phi_12, a_2, tilt_2, phi_jl, theta_jn, phase, lambda_1, lambda_2,
         **kwargs):
     """ A Binary Neutron Star waveform model using lalsimulation
 
