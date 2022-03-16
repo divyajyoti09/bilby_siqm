@@ -388,7 +388,6 @@ def convert_to_lal_siqm_parameters(parameters):
 
 
 def convert_to_lal_binary_neutron_star_parameters(parameters):
->>>>>>> 45ae594c... commiting conversion.py source.py and prior.py
     """
     Convert parameters we have into parameters we need.
 
