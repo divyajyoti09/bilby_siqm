@@ -1097,3 +1097,564 @@ class GravitationalWaveTransient(Likelihood):
             reference_frame=self._reference_frame_str,
             lal_version=self.lal_version,
             lalsimulation_version=self.lalsimulation_version)
+
+class BasicGravitationalWaveTransient(Likelihood):
+
+    def __init__(self, interferometers, waveform_generator):
+        """
+
+        A likelihood object, able to compute the likelihood of the data given
+        some model parameters
+
+        The simplest frequency-domain gravitational wave transient likelihood. Does
+        not include distance/phase marginalization.
+
+
+        Parameters
+        ----------
+        interferometers: list
+            A list of `bilby.gw.detector.Interferometer` instances - contains the
+            detector data and power spectral densities
+        waveform_generator: bilby.gw.waveform_generator.WaveformGenerator
+            An object which computes the frequency-domain strain of the signal,
+            given some set of parameters
+
+        """
+        super(BasicGravitationalWaveTransient, self).__init__(dict())
+        self.interferometers = interferometers
+        self.waveform_generator = waveform_generator
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(interferometers={},\n\twaveform_generator={})'\
+            .format(self.interferometers, self.waveform_generator)
+
+    def noise_log_likelihood(self):
+        """ Calculates the real part of noise log-likelihood
+
+        Returns
+        -------
+        float: The real part of the noise log likelihood
+
+        """
+        log_l = 0
+        for interferometer in self.interferometers:
+            log_l -= 2. / self.waveform_generator.duration * np.sum(
+                abs(interferometer.frequency_domain_strain) ** 2 /
+                interferometer.power_spectral_density_array)
+        return log_l.real
+
+    def log_likelihood(self):
+        """ Calculates the real part of log-likelihood value
+
+        Returns
+        -------
+        float: The real part of the log likelihood
+
+        """
+        log_l = 0
+        waveform_polarizations =\
+            self.waveform_generator.frequency_domain_strain(
+                self.parameters.copy())
+        if waveform_polarizations is None:
+            return np.nan_to_num(-np.inf)
+        for interferometer in self.interferometers:
+            log_l += self.log_likelihood_interferometer(
+                waveform_polarizations, interferometer)
+        return log_l.real
+
+    def log_likelihood_interferometer(self, waveform_polarizations,
+                                      interferometer):
+        """
+
+        Parameters
+        ----------
+        waveform_polarizations: dict
+            Dictionary containing the desired waveform polarization modes and the related strain
+        interferometer: bilby.gw.detector.Interferometer
+            The Interferometer object we want to have the log-likelihood for
+
+        Returns
+        -------
+        float: The real part of the log-likelihood for this interferometer
+
+        """
+        signal_ifo = interferometer.get_detector_response(
+            waveform_polarizations, self.parameters)
+
+        log_l = - 2. / self.waveform_generator.duration * np.vdot(
+            interferometer.frequency_domain_strain - signal_ifo,
+            (interferometer.frequency_domain_strain - signal_ifo) /
+            interferometer.power_spectral_density_array)
+        return log_l.real
+
+
+class ROQGravitationalWaveTransient(GravitationalWaveTransient):
+    """A reduced order quadrature likelihood object
+
+    This uses the method described in Smith et al., (2016) Phys. Rev. D 94,
+    044031. A public repository of the ROQ data is available from
+    https://git.ligo.org/lscsoft/ROQ_data.
+
+    Parameters
+    ----------
+    interferometers: list, bilby.gw.detector.InterferometerList
+        A list of `bilby.detector.Interferometer` instances - contains the
+        detector data and power spectral densities
+    waveform_generator: `bilby.waveform_generator.WaveformGenerator`
+        An object which computes the frequency-domain strain of the signal,
+        given some set of parameters
+    linear_matrix: str, array_like
+        Either a string point to the file from which to load the linear_matrix
+        array, or the array itself.
+    quadratic_matrix: str, array_like
+        Either a string point to the file from which to load the
+        quadratic_matrix array, or the array itself.
+    roq_params: str, array_like
+        Parameters describing the domain of validity of the ROQ basis.
+    roq_params_check: bool
+        If true, run tests using the roq_params to check the prior and data are
+        valid for the ROQ
+    roq_scale_factor: float
+        The ROQ scale factor used.
+    priors: dict, bilby.prior.PriorDict
+        A dictionary of priors containing at least the geocent_time prior
+    distance_marginalization_lookup_table: (dict, str), optional
+        If a dict, dictionary containing the lookup_table, distance_array,
+        (distance) prior_array, and reference_distance used to construct
+        the table.
+        If a string the name of a file containing these quantities.
+        The lookup table is stored after construction in either the
+        provided string or a default location:
+        '.distance_marginalization_lookup_dmin{}_dmax{}_n{}.npz'
+    reference_frame: (str, bilby.gw.detector.InterferometerList, list), optional
+        Definition of the reference frame for the sky location.
+        - "sky": sample in RA/dec, this is the default
+        - e.g., "H1L1", ["H1", "L1"], InterferometerList(["H1", "L1"]):
+          sample in azimuth and zenith, `azimuth` and `zenith` defined in the
+          frame where the z-axis is aligned the the vector connecting H1
+          and L1.
+    time_reference: str, optional
+        Name of the reference for the sampled time parameter.
+        - "geocent"/"geocenter": sample in the time at the Earth's center,
+          this is the default
+        - e.g., "H1": sample in the time of arrival at H1
+
+    """
+
+    def __init__(
+        self, interferometers, waveform_generator, priors,
+        weights=None, linear_matrix=None, quadratic_matrix=None,
+        roq_params=None, roq_params_check=True, roq_scale_factor=1,
+        distance_marginalization=False, phase_marginalization=False,
+        distance_marginalization_lookup_table=None,
+        reference_frame="sky", time_reference="geocenter"
+
+    ):
+        super(ROQGravitationalWaveTransient, self).__init__(
+            interferometers=interferometers,
+            waveform_generator=waveform_generator, priors=priors,
+            distance_marginalization=distance_marginalization,
+            phase_marginalization=phase_marginalization,
+            time_marginalization=False,
+            distance_marginalization_lookup_table=distance_marginalization_lookup_table,
+            jitter_time=False,
+            reference_frame=reference_frame,
+            time_reference=time_reference
+        )
+
+        self.roq_params_check = roq_params_check
+        self.roq_scale_factor = roq_scale_factor
+        if isinstance(roq_params, np.ndarray) or roq_params is None:
+            self.roq_params = roq_params
+        elif isinstance(roq_params, str):
+            self.roq_params_file = roq_params
+            self.roq_params = np.genfromtxt(roq_params, names=True)
+        else:
+            raise TypeError("roq_params should be array or str")
+        if isinstance(weights, dict):
+            self.weights = weights
+        elif isinstance(weights, str):
+            self.weights = self.load_weights(weights)
+        else:
+            self.weights = dict()
+            if isinstance(linear_matrix, str):
+                logger.info(
+                    "Loading linear matrix from {}".format(linear_matrix))
+                linear_matrix = np.load(linear_matrix).T
+            if isinstance(quadratic_matrix, str):
+                logger.info(
+                    "Loading quadratic_matrix from {}".format(quadratic_matrix))
+                quadratic_matrix = np.load(quadratic_matrix).T
+            self._set_weights(linear_matrix=linear_matrix,
+                              quadratic_matrix=quadratic_matrix)
+        self.frequency_nodes_linear =\
+            waveform_generator.waveform_arguments['frequency_nodes_linear']
+        self.frequency_nodes_quadratic = \
+            waveform_generator.waveform_arguments['frequency_nodes_quadratic']
+
+    def calculate_snrs(self, waveform_polarizations, interferometer):
+        """
+        Compute the snrs for ROQ
+
+        Parameters
+        ----------
+        waveform_polarizations: waveform
+        interferometer: bilby.gw.detector.Interferometer
+
+        """
+
+        f_plus = interferometer.antenna_response(
+            self.parameters['ra'], self.parameters['dec'],
+            self.parameters['geocent_time'], self.parameters['psi'], 'plus')
+        f_cross = interferometer.antenna_response(
+            self.parameters['ra'], self.parameters['dec'],
+            self.parameters['geocent_time'], self.parameters['psi'], 'cross')
+
+        dt = interferometer.time_delay_from_geocenter(
+            self.parameters['ra'], self.parameters['dec'],
+            self.parameters['geocent_time'])
+        dt_geocent = self.parameters['geocent_time'] - interferometer.strain_data.start_time
+        ifo_time = dt_geocent + dt
+
+        calib_linear = interferometer.calibration_model.get_calibration_factor(
+            self.frequency_nodes_linear,
+            prefix='recalib_{}_'.format(interferometer.name), **self.parameters)
+        calib_quadratic = interferometer.calibration_model.get_calibration_factor(
+            self.frequency_nodes_quadratic,
+            prefix='recalib_{}_'.format(interferometer.name), **self.parameters)
+
+        h_plus_linear = f_plus * waveform_polarizations['linear']['plus'] * calib_linear
+        h_cross_linear = f_cross * waveform_polarizations['linear']['cross'] * calib_linear
+        h_plus_quadratic = (
+            f_plus * waveform_polarizations['quadratic']['plus'] * calib_quadratic)
+        h_cross_quadratic = (
+            f_cross * waveform_polarizations['quadratic']['cross'] * calib_quadratic)
+
+        indices, in_bounds = self._closest_time_indices(
+            ifo_time, self.weights['time_samples'])
+        if not in_bounds:
+            logger.debug("SNR calculation error: requested time at edge of ROQ time samples")
+            return self._CalculatedSNRs(
+                d_inner_h=np.nan_to_num(-np.inf), optimal_snr_squared=0,
+                complex_matched_filter_snr=np.nan_to_num(-np.inf),
+                d_inner_h_squared_tc_array=None)
+
+        d_inner_h_tc_array = np.einsum(
+            'i,ji->j', np.conjugate(h_plus_linear + h_cross_linear),
+            self.weights[interferometer.name + '_linear'][indices])
+
+        d_inner_h = interp1d(
+            self.weights['time_samples'][indices],
+            d_inner_h_tc_array, kind='cubic', assume_sorted=True)(ifo_time)
+
+        optimal_snr_squared = \
+            np.vdot(np.abs(h_plus_quadratic + h_cross_quadratic)**2,
+                    self.weights[interferometer.name + '_quadratic'])
+
+        complex_matched_filter_snr = d_inner_h / (optimal_snr_squared**0.5)
+        d_inner_h_squared_tc_array = None
+
+        return self._CalculatedSNRs(
+            d_inner_h=d_inner_h, optimal_snr_squared=optimal_snr_squared,
+            complex_matched_filter_snr=complex_matched_filter_snr,
+            d_inner_h_squared_tc_array=d_inner_h_squared_tc_array)
+
+    @staticmethod
+    def _closest_time_indices(time, samples):
+        """
+        Get the closest five times
+
+        Parameters
+        ----------
+        time: float
+            Time to check
+        samples: array-like
+            Available times
+
+        Returns
+        -------
+        indices: list
+            Indices nearest to time
+        in_bounds: bool
+            Whether the indices are for valid times
+        """
+        closest = np.argmin(abs(samples - time))
+        indices = [closest + ii for ii in [-2, -1, 0, 1, 2]]
+        in_bounds = (indices[0] >= 0) & (indices[-1] < samples.size)
+        return indices, in_bounds
+
+    def perform_roq_params_check(self, ifo=None):
+        """ Perform checking that the prior and data are valid for the ROQ
+
+        Parameters
+        ----------
+        ifo: bilby.gw.detector.Interferometer
+            The interferometer
+        """
+        if self.roq_params_check is False:
+            logger.warning("No ROQ params checking performed")
+            return
+        else:
+            if getattr(self, "roq_params_file", None) is not None:
+                msg = ("Check ROQ params {} with roq_scale_factor={}"
+                       .format(self.roq_params_file, self.roq_scale_factor))
+            else:
+                msg = ("Check ROQ params with roq_scale_factor={}"
+                       .format(self.roq_scale_factor))
+            logger.info(msg)
+
+        roq_params = self.roq_params
+        roq_minimum_frequency = roq_params['flow'] * self.roq_scale_factor
+        roq_maximum_frequency = roq_params['fhigh'] * self.roq_scale_factor
+        roq_segment_length = roq_params['seglen'] / self.roq_scale_factor
+        roq_minimum_chirp_mass = roq_params['chirpmassmin'] / self.roq_scale_factor
+        roq_maximum_chirp_mass = roq_params['chirpmassmax'] / self.roq_scale_factor
+        roq_minimum_component_mass = roq_params['compmin'] / self.roq_scale_factor
+
+        if ifo.maximum_frequency > roq_maximum_frequency:
+            raise BilbyROQParamsRangeError(
+                "Requested maximum frequency {} larger than ROQ basis fhigh {}"
+                .format(ifo.maximum_frequency, roq_maximum_frequency))
+        if ifo.minimum_frequency < roq_minimum_frequency:
+            raise BilbyROQParamsRangeError(
+                "Requested minimum frequency {} lower than ROQ basis flow {}"
+                .format(ifo.minimum_frequency, roq_minimum_frequency))
+        if ifo.strain_data.duration != roq_segment_length:
+            raise BilbyROQParamsRangeError(
+                "Requested duration differs from ROQ basis seglen")
+
+        priors = self.priors
+        if isinstance(priors, CBCPriorDict) is False:
+            logger.warning("Unable to check ROQ parameter bounds: priors not understood")
+            return
+
+        if priors.minimum_chirp_mass is None:
+            logger.warning("Unable to check minimum chirp mass ROQ bounds")
+        elif priors.minimum_chirp_mass < roq_minimum_chirp_mass:
+            raise BilbyROQParamsRangeError(
+                "Prior minimum chirp mass {} less than ROQ basis bound {}"
+                .format(priors.minimum_chirp_mass,
+                        roq_minimum_chirp_mass))
+
+        if priors.maximum_chirp_mass is None:
+            logger.warning("Unable to check maximum_chirp mass ROQ bounds")
+        elif priors.maximum_chirp_mass > roq_maximum_chirp_mass:
+            raise BilbyROQParamsRangeError(
+                "Prior maximum chirp mass {} greater than ROQ basis bound {}"
+                .format(priors.maximum_chirp_mass,
+                        roq_maximum_chirp_mass))
+
+        if priors.minimum_component_mass is None:
+            logger.warning("Unable to check minimum component mass ROQ bounds")
+        elif priors.minimum_component_mass < roq_minimum_component_mass:
+            raise BilbyROQParamsRangeError(
+                "Prior minimum component mass {} less than ROQ basis bound {}"
+                .format(priors.minimum_component_mass,
+                        roq_minimum_component_mass))
+
+    def _set_weights(self, linear_matrix, quadratic_matrix):
+        """ Setup the time-dependent ROQ weights.
+
+        Parameters
+        ----------
+        linear_matrix, quadratic_matrix: array_like
+            Arrays of the linear and quadratic basis
+
+        """
+
+        time_space = self._get_time_resolution()
+        # Maximum delay time to geocentre + 5 steps
+        earth_light_crossing_time = radius_of_earth / speed_of_light + 5 * time_space
+        delta_times = np.arange(
+            self.priors['{}_time'.format(self.time_reference)].minimum - earth_light_crossing_time,
+            self.priors['{}_time'.format(self.time_reference)].maximum + earth_light_crossing_time,
+            time_space)
+        time_samples = delta_times - self.interferometers.start_time
+        self.weights['time_samples'] = time_samples
+        logger.info("Using {} ROQ time samples".format(len(time_samples)))
+
+        for ifo in self.interferometers:
+            if self.roq_params is not None:
+                self.perform_roq_params_check(ifo)
+                # Get scaled ROQ quantities
+                roq_scaled_minimum_frequency = self.roq_params['flow'] * self.roq_scale_factor
+                roq_scaled_maximum_frequency = self.roq_params['fhigh'] * self.roq_scale_factor
+                roq_scaled_segment_length = self.roq_params['seglen'] / self.roq_scale_factor
+                # Generate frequencies for the ROQ
+                roq_frequencies = create_frequency_series(
+                    sampling_frequency=roq_scaled_maximum_frequency * 2,
+                    duration=roq_scaled_segment_length)
+                roq_mask = roq_frequencies >= roq_scaled_minimum_frequency
+                roq_frequencies = roq_frequencies[roq_mask]
+                overlap_frequencies, ifo_idxs, roq_idxs = np.intersect1d(
+                    ifo.frequency_array[ifo.frequency_mask], roq_frequencies,
+                    return_indices=True)
+            else:
+                overlap_frequencies = ifo.frequency_array[ifo.frequency_mask]
+                roq_idxs = np.arange(linear_matrix.shape[0], dtype=int)
+                ifo_idxs = [True] * sum(ifo.frequency_mask)
+                if sum(ifo_idxs) != len(roq_idxs):
+                    raise ValueError(
+                        "Mismatch between ROQ basis and frequency array for "
+                        "{}".format(ifo.name))
+            logger.info(
+                "Building ROQ weights for {} with {} frequencies between {} "
+                "and {}.".format(
+                    ifo.name, len(overlap_frequencies),
+                    min(overlap_frequencies), max(overlap_frequencies)))
+
+            logger.debug("Preallocate array")
+            tc_shifted_data = np.zeros((
+                len(self.weights['time_samples']), len(overlap_frequencies)),
+                dtype=complex)
+
+            logger.debug("Calculate shifted data")
+            data = ifo.frequency_domain_strain[ifo.frequency_mask][ifo_idxs]
+            prefactor = (
+                data /
+                ifo.power_spectral_density_array[ifo.frequency_mask][ifo_idxs]
+            )
+            for j in range(len(self.weights['time_samples'])):
+                tc_shifted_data[j] = prefactor * np.exp(
+                    2j * np.pi * overlap_frequencies * time_samples[j])
+
+            # to not kill all computers this minimises the memory usage of the
+            # required inner products
+            max_block_gigabytes = 4
+            max_elements = int((max_block_gigabytes * 2 ** 30) / 8)
+
+            logger.debug("Apply dot product")
+            self.weights[ifo.name + '_linear'] = blockwise_dot_product(
+                tc_shifted_data,
+                linear_matrix[roq_idxs],
+                max_elements) * 4 / ifo.strain_data.duration
+
+            del tc_shifted_data, overlap_frequencies
+            gc.collect()
+
+            self.weights[ifo.name + '_quadratic'] = build_roq_weights(
+                1 /
+                ifo.power_spectral_density_array[ifo.frequency_mask][ifo_idxs],
+                quadratic_matrix[roq_idxs].real,
+                1 / ifo.strain_data.duration)
+
+            logger.info("Finished building weights for {}".format(ifo.name))
+
+    def save_weights(self, filename, format='npz'):
+        if format not in filename:
+            filename += "." + format
+        logger.info("Saving ROQ weights to {}".format(filename))
+        if format == 'json':
+            with open(filename, 'w') as file:
+                json.dump(self.weights, file, indent=2, cls=BilbyJsonEncoder)
+        elif format == 'npz':
+            np.savez(filename, **self.weights)
+
+    @staticmethod
+    def load_weights(filename, format=None):
+        if format is None:
+            format = filename.split(".")[-1]
+        if format not in ["json", "npz"]:
+            raise IOError("Format {} not recongized.".format(format))
+        logger.info("Loading ROQ weights from {}".format(filename))
+        if format == "json":
+            with open(filename, 'r') as file:
+                weights = json.load(file, object_hook=decode_bilby_json)
+        elif format == "npz":
+            # Wrap in dict to load data into memory
+            weights = dict(np.load(filename))
+        return weights
+
+    def _get_time_resolution(self):
+        """
+        This method estimates the time resolution given the optimal SNR of the
+        signal in the detector. This is then used when constructing the weights
+        for the ROQ.
+
+        A minimum resolution is set by assuming the SNR in each detector is at
+        least 10. When the SNR is not available the SNR is assumed to be 30 in
+        each detector.
+
+        Returns
+        -------
+        delta_t: float
+            Time resolution
+        """
+
+        def calc_fhigh(freq, psd, scaling=20.):
+            """
+
+            Parameters
+            ----------
+            freq: array-like
+                Frequency array
+            psd: array-like
+                Power spectral density
+            scaling: float
+                SNR dependent scaling factor
+
+            Returns
+            -------
+            f_high: float
+                The maximum frequency which must be considered
+            """
+            integrand1 = np.power(freq, -7. / 3) / psd
+            integral1 = integrate.simps(integrand1, freq)
+            integrand3 = np.power(freq, 2. / 3.) / (psd * integral1)
+            f_3_bar = integrate.simps(integrand3, freq)
+
+            f_high = scaling * f_3_bar**(1 / 3)
+
+            return f_high
+
+        def c_f_scaling(snr):
+            return (np.pi**2 * snr**2 / 6)**(1 / 3)
+
+        inj_snr_sq = 0
+        for ifo in self.interferometers:
+            inj_snr_sq += min(10, getattr(ifo.meta_data, 'optimal_SNR', 30))**2
+
+        psd = ifo.power_spectral_density_array[ifo.frequency_mask]
+        freq = ifo.frequency_array[ifo.frequency_mask]
+        fhigh = calc_fhigh(freq, psd, scaling=c_f_scaling(inj_snr_sq**0.5))
+
+        delta_t = fhigh**-1
+
+        # Apply a safety factor to ensure the time step is short enough
+        delta_t = delta_t / 5
+
+        logger.info("ROQ time-step = {}".format(delta_t))
+        return delta_t
+
+    def _rescale_signal(self, signal, new_distance):
+        for kind in ['linear', 'quadratic']:
+            for mode in signal[kind]:
+                signal[kind][mode] *= self._ref_dist / new_distance
+
+
+def get_binary_black_hole_likelihood(interferometers):
+    """ A wrapper to quickly set up a likelihood for BBH parameter estimation
+
+    Parameters
+    ----------
+    interferometers: {bilby.gw.detector.InterferometerList, list}
+        A list of `bilby.detector.Interferometer` instances, typically the
+        output of either `bilby.detector.get_interferometer_with_open_data`
+        or `bilby.detector.get_interferometer_with_fake_noise_and_injection`
+
+    Returns
+    -------
+    bilby.GravitationalWaveTransient: The likelihood to pass to `run_sampler`
+
+    """
+    waveform_generator = WaveformGenerator(
+        duration=interferometers.duration,
+        sampling_frequency=interferometers.sampling_frequency,
+        frequency_domain_source_model=lal_binary_black_hole,
+        waveform_arguments={'waveform_approximant': 'IMRPhenomPv2',
+                            'reference_frequency': 50})
+    return GravitationalWaveTransient(interferometers, waveform_generator)
+
+
+class BilbyROQParamsRangeError(Exception):
+    pass
