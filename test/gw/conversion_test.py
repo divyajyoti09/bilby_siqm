@@ -17,6 +17,10 @@ class TestBasicConversions(unittest.TestCase):
         self.symmetric_mass_ratio = (1.4 * 1.3) / 2.7 ** 2
         self.cos_angle = -1
         self.angle = np.pi
+        self.dQuadMon1 = 10.0
+        self.dQuadMon2 = 10.0
+        self.dQuadMonS = (0.5*(self.dQuadMon1+self.dQuadMon2))
+        self.dQuadMonA = (0.5*(self.dQuadMon1-self.dQuadMon2))
         self.lambda_1 = 300
         self.lambda_2 = 300 * (14 / 13) ** 5
         self.lambda_tilde = (
@@ -163,6 +167,24 @@ class TestBasicConversions(unittest.TestCase):
             self.lambda_1, self.lambda_2, self.mass_1, self.mass_2
         )
         self.assertTrue((self.delta_lambda_tilde - delta_lambda_tilde) < 1e-5)
+    
+    def test_dQuadMon1_and_dQuadMon2_to_dQuadMonS(self):
+        (dQuadMonS,dQuadMonA) = conversion.dQuadMon1_and_dQuadMon2_to_dQuadMonS(self.dQuadMon1, self.dQuadMon2)
+        self.assertTrue(all([self.dQuadMonS - dQuadMonS < 1e-5, self.dQuadMonA - dQuadMonA < 1e-5]))
+
+    def test_dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(self):
+        (dQuadMonS,dQuadMonA) = conversion.dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(
+            self.dQuadMon1, self.dQuadMon2
+        )
+        self.assertTrue(all([self.dQuadMonS - dQuadMonS < 1e-5, self.dQuadMonA - dQuadMonA < 1e-5]))
+
+
+    def test_dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(self):
+        (dQuadMon1,dQuadMon2) = conversion.dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
+            self.dQuadMonS, self.dQuadMonA
+        )
+        self.assertTrue(all([(self.dQuadMon1 - dQuadMon1) < 1e-5, (self.dQuadMon2 - dQuadMon2) < 1e-5]))
+
 
 
 class TestConvertToLALParams(unittest.TestCase):
@@ -197,6 +219,13 @@ class TestConvertToLALParams(unittest.TestCase):
         ] = conversion.lambda_1_lambda_2_to_delta_lambda_tilde(
             **self.all_component_pars
         )
+        self.component_siqm_parameters = dict(dQuadMon1=10.0, dQuadMon2=10.0)
+        self.all_component_pars = self.component_siqm_parameters.copy()
+        self.siqm_parameters = self.component_siqm_parameters.copy()
+        self.siqm_parameters[
+            "dQuadMonS", "dQuadMonA"
+        ] = conversion.dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(**self.all_component_pars)
+
 
     def tearDown(self):
         del self.search_keys
@@ -213,6 +242,10 @@ class TestConvertToLALParams(unittest.TestCase):
             self.parameters,
             self.added_keys,
         ) = conversion.convert_to_lal_binary_neutron_star_parameters(self.parameters)
+    
+        
+    def siqm_convert(self):
+        (self.parameters,self.added_keys,) = conversion.convert_to_lal_siqm_parameters(self.parameters)
 
     def test_redshift_to_luminosity_distance(self):
         self.parameters["redshift"] = 1
@@ -371,6 +404,19 @@ class TestConvertToLALParams(unittest.TestCase):
         self._conversion_to_component_tidal(["lambda_1"])
 
 
+    def _conversion_to_component_siqm(self, keys):
+        for key in keys:
+            self.parameters[key] = self.siqm_parameters[key]
+        self.siqm_convert()    
+        component_dict = {key: self.parameters[key] for key in ["dQuadMon1", "dQuadMon2"]}
+        self.assertDictEqual(component_dict, self.component_siqm_parameters)
+
+    def test_dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(self):
+        self._conversion_to_component_siqm(["dQuadMon1","dQuadMon2"])
+
+
+
+
 class TestGenerateAllParameters(unittest.TestCase):
     def setUp(self):
         self.parameters = dict(
@@ -391,6 +437,10 @@ class TestGenerateAllParameters(unittest.TestCase):
             dec=-1.2108,
             lambda_tilde=1000,
             delta_lambda_tilde=0,
+	    dQuadMonS = 10,
+	    dQuadMonA = 0,
+            dQuadMon1 = 10,
+            dQuadMon2 = 10
         )
         self.expected_bbh_keys = [
             "mass_1",
@@ -443,6 +493,12 @@ class TestGenerateAllParameters(unittest.TestCase):
             "lambda_tilde",
             "delta_lambda_tilde",
         ]
+	self.expected_siqm_keys = [
+            "dQuadMon1",
+            "dQuadMon2",
+            "dQuadMonS",
+            "dQuadMonA",
+        ]
         self.data_frame = pd.DataFrame({
             key: [value] * 100 for key, value in self.parameters.items()
         })
@@ -452,6 +508,9 @@ class TestGenerateAllParameters(unittest.TestCase):
             bilby.gw.conversion.generate_all_bbh_parameters,
             self.expected_bbh_keys,
         )
+
+        for key in self.expected_siqm_keys:
+            self.assertIn(key, new_parameters)
 
     def test_generate_all_bns_parameters(self):
         self._generate(
