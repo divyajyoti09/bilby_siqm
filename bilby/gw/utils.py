@@ -940,8 +940,8 @@ def lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
         dQuadMon1 = float(dQuadMon1)
     except ValueError:
         raise ValueError("Unable to convert dQuadMon1  to float")
-
-    return lalsim.SimInspiralWaveformParamsInsertdQuadMon1(
+    import lalsimulation
+    return lalsimulation.SimInspiralWaveformParamsInsertdQuadMon1(
         waveform_dictionary, dQuadMon1)
 
 
@@ -951,8 +951,8 @@ def lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
         dQuadMon2 = float(dQuadMon2)
     except ValueError:
         raise ValueError("Unable to convert dQuadMon2 to float")
-
-    return lalsim.SimInspiralWaveformParamsInsertdQuadMon2(
+    import lalsimulation
+    return lalsimulation.SimInspiralWaveformParamsInsertdQuadMon2(
         waveform_dictionary, dQuadMon2)
 
 
