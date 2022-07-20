@@ -116,6 +116,8 @@ def lal_siqm(
         phi_jl=phi_jl,
         theta_jn=theta_jn,
         phase=phase,
+        dQuadMon1=dQuadMon1,
+        dQuadMon2=dQuadMon2,
         **waveform_kwargs
     )
 
