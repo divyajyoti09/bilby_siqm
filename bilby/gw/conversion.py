@@ -226,6 +226,9 @@ def convert_to_lal_binary_black_hole_parameters(parameters):
                 1 + converted_parameters['redshift'])
 
     if 'chirp_mass' in converted_parameters.keys():
+        if "mass_1" in converted_parameters.keys():
+            converted_parameters["mass_ratio"] = chirp_mass_and_primary_mass_to_mass_ratio(
+                converted_parameters["chirp_mass"], converted_parameters["mass_1"])
         if 'total_mass' in converted_parameters.keys():
             converted_parameters['symmetric_mass_ratio'] =\
                 chirp_mass_and_total_mass_to_symmetric_mass_ratio(
@@ -922,61 +925,6 @@ def total_mass_and_mass_ratio_to_component_masses(mass_ratio, total_mass):
     mass_1 = total_mass / (1 + mass_ratio)
     mass_2 = mass_1 * mass_ratio
     return mass_1, mass_2
-
-
-<<<<<<< HEAD
-def chirp_mass_and_mass_ratio_to_component_masses(chirp_mass, mass_ratio):
-    """
-    Convert total mass and mass ratio of a binary to its component masses.
-
-    Parameters
-    ==========
-    chirp_mass: float
-        Chirp mass of the binary
-    mass_ratio: float
-        Mass ratio (mass_2/mass_1) of the binary
-
-    Returns
-    =======
-    mass_1: float
-        Mass of the heavier object
-    mass_2: float
-        Mass of the lighter object
-    """
-    total_mass = chirp_mass_and_mass_ratio_to_total_mass(chirp_mass=chirp_mass,
-                                                         mass_ratio=mass_ratio)
-    mass_1, mass_2 = (
-        total_mass_and_mass_ratio_to_component_masses(
-            total_mass=total_mass, mass_ratio=mass_ratio)
-    )
-    return mass_1, mass_2
-=======
-
-
-def dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(dQuadMon1, dQuadMon2):
-    """
-    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
-
-    Parameters
-    ----------
-    dQuadMon1: float
-        Spin-induced quadrupole parameter of the heavier object
-    dQuadMon2: float
-        Spin-induced quadrupole parameter of the lighter object
-
-    Return
-    ------
-    dQuadMonS: float
-        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    dQuadMonA: float
-        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
-    """
-
-    dQuadMonS=1./2.(dQuadMon1+dQuadMon2)
-    dQuadMonA=1./2.(dQuadMon1-dQuadMon2)
-    return dQuadMonS, dQuadMonA
-
->>>>>>> 7d596701 (rebase conflict)
 
 
 def symmetric_mass_ratio_to_mass_ratio(symmetric_mass_ratio):
@@ -2155,11 +2103,18 @@ def generate_spin_parameters(sample):
                                 output_sample['mass_ratio']) /\
                                (1 + output_sample['mass_ratio'])
 
+    output_sample['chi_1_in_plane'] = np.sqrt(
+        output_sample['spin_1x'] ** 2 + output_sample['spin_1y'] ** 2
+    )
+    output_sample['chi_2_in_plane'] = np.sqrt(
+        output_sample['spin_2x'] ** 2 + output_sample['spin_2y'] ** 2
+    )
+
     output_sample['chi_p'] = np.maximum(
-        (output_sample['spin_1x'] ** 2 + output_sample['spin_1y']**2)**0.5,
+        output_sample['chi_1_in_plane'],
         (4 * output_sample['mass_ratio'] + 3) /
         (3 * output_sample['mass_ratio'] + 4) * output_sample['mass_ratio'] *
-        (output_sample['spin_2x'] ** 2 + output_sample['spin_2y']**2)**0.5)
+        output_sample['chi_2_in_plane'])
 
     try:
         output_sample['cos_tilt_1'] = np.cos(output_sample['tilt_1'])
@@ -2221,7 +2176,7 @@ def generate_component_spins(sample):
         output_sample['spin_2y'] = 0
         output_sample['spin_2z'] = output_sample['chi_2']
     else:
-        logger.warning("Component spin extraction failed.")
+        logger.debug("Component spin extraction failed.")
 
     return output_sample
 
