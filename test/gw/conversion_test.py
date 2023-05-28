@@ -489,7 +489,7 @@ class TestGenerateAllParameters(unittest.TestCase):
             "lambda_tilde",
             "delta_lambda_tilde",
         ]
-	self.expected_siqm_keys = [
+        self.expected_siqm_keys = [
             "dQuadMon1",
             "dQuadMon2",
             "dQuadMonS",
@@ -502,11 +502,8 @@ class TestGenerateAllParameters(unittest.TestCase):
     def test_generate_all_bbh_parameters(self):
         self._generate(
             bilby.gw.conversion.generate_all_bbh_parameters,
-            self.expected_bbh_keys,
+            self.expected_bbh_keys + self.expected_siqm_keys,
         )
-
-        for key in self.expected_siqm_keys:
-            self.assertIn(key, new_parameters)
 
     def test_generate_all_bns_parameters(self):
         self._generate(

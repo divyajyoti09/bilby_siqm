@@ -499,55 +499,6 @@ class TestLalSIQM(unittest.TestCase):
             bilby.gw.source.lal_siqm(self.frequency_array, **self.parameters)
 
 
-class TestLalSIQM(unittest.TestCase):
-    def setUp(self):
-        self.parameters = dict(
-            mass_1=20.,
-            mass_2=14.,
-            luminosity_distance=400.0,
-            a_1=0.4,
-            a_2=0.3,
-            tilt_1=0.2,
-            tilt_2=1.7,
-            phi_jl=0.2,
-            phi_12=0.9,
-            theta_jn=1.7,
-            phase=0.0,
-            dQuadMon1=100.0,
-            dQuadMon2=100.0,
-
-        )
-        self.waveform_kwargs = dict(
-            waveform_approximant="IMRPhenomPv2",
-            reference_frequency=50.0,
-            minimum_frequency=20.0,
-        )
-        self.frequency_array = bilby.core.utils.create_frequency_series(2048, 4)
-
-    def tearDown(self):
-        del self.parameters
-        del self.waveform_kwargs
-        del self.frequency_array
-
-    def test_lal_siqm_runs_with_valid_parameters(self):
-        self.parameters.update(self.waveform_kwargs)
-        self.assertIsInstance(
-            bilby.gw.source.lal_siqm(
-                self.frequency_array, **self.parameters
-            ),
-            dict,
-        )
-
-        def test_lal_siqm_works_without_waveform_parameters(self):
-            self.parameters.pop("dQuadMon1")
-            self.parameters.pop("dQuadMon2")
-            self.parameters.update(self.waveform_kwargs)
-            with self.assertRaises(TypeError):
-                bilby.gw.source.lal_siqm(
-                    self.frequency_array, **self.parameters
-                )
-
-
 class TestRelbinBBH(unittest.TestCase):
     def setUp(self):
         self.parameters = dict(

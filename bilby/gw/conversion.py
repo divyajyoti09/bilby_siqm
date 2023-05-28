@@ -1009,7 +1009,6 @@ def dQuadMon1_and_dQuadMon2_to_dQuadMonS_and_dQuadMonA(dQuadMon1, dQuadMon2):
     return dQuadMonS, dQuadMonA
 
 
-
 def symmetric_mass_ratio_to_mass_ratio(symmetric_mass_ratio):
     """
     Convert the symmetric mass ratio to the normal mass ratio.
@@ -1077,6 +1076,7 @@ def chirp_mass_and_primary_mass_to_mass_ratio(chirp_mass, mass_1):
     t1 = np.cbrt(2) * 3 ** (2 / 3)
     t2 = np.cbrt(2 / 3) * a
     return t2 / t0 + t0 / t1
+
 
 def chirp_mass_and_mass_ratio_to_total_mass(chirp_mass, mass_ratio):
     """
@@ -1838,7 +1838,6 @@ def generate_all_bbh_parameters(sample, likelihood=None, priors=None, npool=1):
         base_conversion=convert_to_lal_binary_black_hole_parameters,
         likelihood=likelihood, priors=priors, npool=npool)
     return output_sample
-
 
 
 def generate_all_bns_parameters(sample, likelihood=None, priors=None, npool=1):

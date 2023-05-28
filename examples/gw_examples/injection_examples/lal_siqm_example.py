@@ -7,7 +7,9 @@ This example estimates the masses using a uniform prior in both component masses
 and distance using a uniform in comoving volume prior on luminosity distance
 between luminosity distances of 100Mpc and 5Gpc, the cosmology is Planck15.
 
-This tutorial uses only 100 live points for analysis. This is to check whether the pipeline is running fine and producing results. It is not meant to be used to get an idea of how results will look.
+This tutorial uses only 100 live points for analysis.
+This is to check whether the pipeline is running fine and producing results.
+It is not meant to be used to get an idea of how results will look.
 """
 
 import bilby
@@ -48,7 +50,7 @@ injection_parameters = dict(
     ra=1.375,
     dec=-1.2108,
     dQuadMon1=20,
-    dQuadMon2=0
+    dQuadMon2=0,
 )
 
 # Fixed arguments passed into the source model
@@ -105,12 +107,12 @@ for key in [
     "phase",
 ]:
     priors[key] = injection_parameters[key]
-    priors['dQuadMonS'] = bilby.core.prior.Uniform(0, 500, name='dQuadMonS')
-    priors['dQuadMonA'] = 0
+    priors["dQuadMonS"] = bilby.core.prior.Uniform(0, 500, name="dQuadMonS")
+    priors["dQuadMonA"] = 0
 
 
 # Perform a check that the prior does not extend to a parameter space longer than the data
-#priors.validate_prior(duration, minimum_frequency)
+priors.validate_prior(duration, minimum_frequency)
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
 # the waveform generator

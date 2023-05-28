@@ -951,9 +951,10 @@ class Dynesty(NestedSampler):
 
     def calc_likelihood_count(self):
         if self.likelihood_benchmark:
-            if hasattr(self, 'sampler'):
-                self.result.num_likelihood_evaluations = \
-                    getattr(self.sampler, 'ncall', 0)
+            if hasattr(self, "sampler"):
+                self.result.num_likelihood_evaluations = getattr(
+                    self.sampler, "ncall", 0
+                )
             else:
                 self.result.num_likelihood_evaluations = 0
         else:
