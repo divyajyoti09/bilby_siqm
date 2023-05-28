@@ -225,67 +225,8 @@ def convert_to_lal_binary_black_hole_parameters(parameters):
             converted_parameters[key[:-7]] = converted_parameters[key] * (
                 1 + converted_parameters['redshift'])
 
-    if 'chirp_mass' in converted_parameters.keys():
-        if "mass_1" in converted_parameters.keys():
-            converted_parameters["mass_ratio"] = chirp_mass_and_primary_mass_to_mass_ratio(
-                converted_parameters["chirp_mass"], converted_parameters["mass_1"])
-        if 'total_mass' in converted_parameters.keys():
-            converted_parameters['symmetric_mass_ratio'] =\
-                chirp_mass_and_total_mass_to_symmetric_mass_ratio(
-                    converted_parameters['chirp_mass'],
-                    converted_parameters['total_mass'])
-        if 'symmetric_mass_ratio' in converted_parameters.keys() and "mass_ratio" not in converted_parameters:
-            converted_parameters['mass_ratio'] =\
-                symmetric_mass_ratio_to_mass_ratio(
-                    converted_parameters['symmetric_mass_ratio'])
-        if 'total_mass' not in converted_parameters.keys():
-            converted_parameters['total_mass'] =\
-                chirp_mass_and_mass_ratio_to_total_mass(
-                    converted_parameters['chirp_mass'],
-                    converted_parameters['mass_ratio'])
-        converted_parameters['mass_1'], converted_parameters['mass_2'] = \
-            total_mass_and_mass_ratio_to_component_masses(
-                converted_parameters['mass_ratio'],
-                converted_parameters['total_mass'])
-    elif 'total_mass' in converted_parameters.keys():
-        if 'symmetric_mass_ratio' in converted_parameters.keys():
-            converted_parameters['mass_ratio'] = \
-                symmetric_mass_ratio_to_mass_ratio(
-                    converted_parameters['symmetric_mass_ratio'])
-        if 'mass_ratio' in converted_parameters.keys():
-            converted_parameters['mass_1'], converted_parameters['mass_2'] =\
-                total_mass_and_mass_ratio_to_component_masses(
-                    converted_parameters['mass_ratio'],
-                    converted_parameters['total_mass'])
-        elif 'mass_1' in converted_parameters.keys():
-            converted_parameters['mass_2'] =\
-                converted_parameters['total_mass'] -\
-                converted_parameters['mass_1']
-        elif 'mass_2' in converted_parameters.keys():
-            converted_parameters['mass_1'] = \
-                converted_parameters['total_mass'] - \
-                converted_parameters['mass_2']
-    elif 'symmetric_mass_ratio' in converted_parameters.keys():
-        converted_parameters['mass_ratio'] =\
-            symmetric_mass_ratio_to_mass_ratio(
-                converted_parameters['symmetric_mass_ratio'])
-        if 'mass_1' in converted_parameters.keys():
-            converted_parameters['mass_2'] =\
-                converted_parameters['mass_1'] *\
-                converted_parameters['mass_ratio']
-        elif 'mass_2' in converted_parameters.keys():
-            converted_parameters['mass_1'] =\
-                converted_parameters['mass_2'] /\
-                converted_parameters['mass_ratio']
-    elif 'mass_ratio' in converted_parameters.keys():
-        if 'mass_1' in converted_parameters.keys():
-            converted_parameters['mass_2'] =\
-                converted_parameters['mass_1'] *\
-                converted_parameters['mass_ratio']
-        if 'mass_2' in converted_parameters.keys():
-            converted_parameters['mass_1'] = \
-                converted_parameters['mass_2'] /\
-                converted_parameters['mass_ratio']
+# we do not require the component masses be added if no mass parameters are present
+    converted_parameters = generate_component_masses(converted_parameters, require_add=False)
 
     for idx in ['1', '2']:
         key = 'chi_{}'.format(idx)
