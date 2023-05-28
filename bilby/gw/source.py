@@ -1,6 +1,6 @@
 import numpy as np
-from lal import CreateDict
-import lalsimulation
+
+
 from ..core import utils
 from ..core.utils import logger
 from .conversion import bilby_to_lalsimulation_spins
@@ -12,13 +12,6 @@ from .utils import (lalsim_GetApproximantFromString,
                     lalsim_SimInspiralWaveformParamsInsertTidalLambda1,
                     lalsim_SimInspiralWaveformParamsInsertTidalLambda2,
                     lalsim_SimInspiralChooseFDWaveformSequence)
-
-try:
-    import lal
-    import lalsimulation as lalsim
-except ImportError:
-    logger.debug("You do not have lalsuite installed currently. You will"
-                 " not be able to use some of the prebuilt functions.")
 
 
 def lal_siqm(
