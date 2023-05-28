@@ -932,6 +932,33 @@ def total_mass_and_mass_ratio_to_component_masses(mass_ratio, total_mass):
     return mass_1, mass_2
 
 
+def chirp_mass_and_mass_ratio_to_component_masses(chirp_mass, mass_ratio):
+    """
+    Convert total mass and mass ratio of a binary to its component masses.
+
+    Parameters
+    ==========
+    chirp_mass: float
+        Chirp mass of the binary
+    mass_ratio: float
+        Mass ratio (mass_2/mass_1) of the binary
+
+    Returns
+    =======
+    mass_1: float
+        Mass of the heavier object
+    mass_2: float
+        Mass of the lighter object
+    """
+    total_mass = chirp_mass_and_mass_ratio_to_total_mass(chirp_mass=chirp_mass,
+                                                         mass_ratio=mass_ratio)
+    mass_1, mass_2 = (
+        total_mass_and_mass_ratio_to_component_masses(
+            total_mass=total_mass, mass_ratio=mass_ratio)
+    )
+    return mass_1, mass_2
+
+
 def dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(dQuadMonS, dQuadMonA):
     """
     Convert symmetric and anti-symmetric combinations of spin-induced quadrupole
