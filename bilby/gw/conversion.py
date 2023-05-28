@@ -338,57 +338,6 @@ def convert_to_lal_binary_neutron_star_parameters(parameters):
     Mass: mass_1, mass_2
     Spin: a_1, a_2, tilt_1, tilt_2, phi_12, phi_jl
     Extrinsic: luminosity_distance, theta_jn, phase, ra, dec, geocent_time, psi
-
-    This involves popping a lot of things from parameters.
-    The keys in added_keys should be popped after evaluating the waveform.
-
-    Parameters
-    ----------
-    parameters: dict
-        dictionary of parameter values to convert into the required parameters
-
-    Return
-    ------
-    converted_parameters: dict
-        dict of the required parameters
-    added_keys: list
-        keys which are added to parameters during function call
-    """
-    converted_parameters = parameters.copy()
-    converted_parameters, added_keys =\
-        convert_to_lal_binary_black_hole_parameters(converted_parameters)
-
-    if not any([key in converted_parameters for key in
-                ['dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA']]):
-        converted_parameters['dQuadMon1'] = 0
-        converted_parameters['dQuadMon2'] = 0
-        added_keys = added_keys + ['dQuadMon1', 'dQuadMon2']
-        return converted_parameters, added_keys
-
-    if 'dQuadMonS' in converted_parameters.keys():
-        converted_parameters['dQuadMon1'], converted_parameters['dQuadMon2'] =\
-            dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
-                converted_parameters['dQuadMonS'],
-                parameters['dQuadMonA'])
-    elif 'dQuadMonA' in converted_parameters.keys():
-        converted_parameters['dQuadMon1'], converted_parameters['dQuadMon2'] =\
-            dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
-                converted_parameters['dQuadMonS'],
-                parameters['dQuadMonA'])
-
-    return converted_parameters, added_keys
-
-
-def convert_to_lal_binary_neutron_star_parameters(parameters):
-    """
-    Convert parameters we have into parameters we need.
-
-    This is defined by the parameters of bilby.source.lal_binary_black_hole()
-
-
-    Mass: mass_1, mass_2
-    Spin: a_1, a_2, tilt_1, tilt_2, phi_12, phi_jl
-    Extrinsic: luminosity_distance, theta_jn, phase, ra, dec, geocent_time, psi
     Tidal: lambda_1, lamda_2, lambda_tilde, delta_lambda_tilde
 
     This involves popping a lot of things from parameters.
@@ -411,6 +360,24 @@ def convert_to_lal_binary_neutron_star_parameters(parameters):
     original_keys = list(converted_parameters.keys())
     converted_parameters, added_keys =\
         convert_to_lal_binary_black_hole_parameters(converted_parameters)
+
+    if not any([key in converted_parameters for key in
+                ['dQuadMon1', 'dQuadMon2', 'dQuadMonS', 'dQuadMonA']]):
+        converted_parameters['dQuadMon1'] = 0
+        converted_parameters['dQuadMon2'] = 0
+        added_keys = added_keys + ['dQuadMon1', 'dQuadMon2']
+        return converted_parameters, added_keys
+
+    if 'dQuadMonS' in converted_parameters.keys():
+        converted_parameters['dQuadMon1'], converted_parameters['dQuadMon2'] =\
+            dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
+                converted_parameters['dQuadMonS'],
+                parameters['dQuadMonA'])
+    elif 'dQuadMonA' in converted_parameters.keys():
+        converted_parameters['dQuadMon1'], converted_parameters['dQuadMon2'] =\
+            dQuadMonS_and_dQuadMonA_to_dQuadMon1_and_dQuadMon2(
+                converted_parameters['dQuadMonS'],
+                parameters['dQuadMonA'])
 
     if not any([key in converted_parameters for key in
                 ['lambda_1', 'lambda_2',
