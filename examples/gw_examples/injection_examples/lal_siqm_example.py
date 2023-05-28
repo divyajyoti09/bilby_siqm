@@ -15,7 +15,7 @@ import numpy as np
 
 # Set the duration and sampling frequency of the data segment that we're
 # going to inject the signal into
-duration = 8.0
+duration = 4.0
 sampling_frequency = 2048.0
 minimum_frequency = 20
 
