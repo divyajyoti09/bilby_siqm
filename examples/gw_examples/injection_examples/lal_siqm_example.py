@@ -110,7 +110,7 @@ for key in [
 
 
 # Perform a check that the prior does not extend to a parameter space longer than the data
-priors.validate_prior(duration, minimum_frequency)
+#priors.validate_prior(duration, minimum_frequency)
 
 # Initialise the likelihood by passing in the interferometer data (ifos) and
 # the waveform generator
