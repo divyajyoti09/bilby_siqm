@@ -779,6 +779,29 @@ def lalsim_SimInspiralWaveformParamsInsertTidalLambda1(
         waveform_dictionary, lambda_1)
 
 
+
+def lalsim_SimInspiralWaveformParamsInsertdQuadMon1(
+        waveform_dictionary, dQuadMon1):
+    try:
+        dQuadMon1 = float(dQuadMon1)
+    except ValueError:
+        raise ValueError("Unable to convert dQuadMon1  to float")
+
+    return lalsim.SimInspiralWaveformParamsInsertdQuadMon1(
+        waveform_dictionary, dQuadMon1)
+
+
+
+def lalsim_SimInspiralWaveformParamsInsertdQuadMon2(
+        waveform_dictionary, dQuadMon2):
+    try:
+        dQuadMon2 = float(dQuadMon2)
+    except ValueError:
+        raise ValueError("Unable to convert dQuadMon1  to float")
+
+    return lalsim.SimInspiralWaveformParamsInsertdQuadMon2(
+        waveform_dictionary, dQuadMon2)
+
 def lalsim_SimInspiralWaveformParamsInsertTidalLambda2(
         waveform_dictionary, lambda_2):
     from lalsimulation import SimInspiralWaveformParamsInsertTidalLambda2

@@ -225,8 +225,64 @@ def convert_to_lal_binary_black_hole_parameters(parameters):
             converted_parameters[key[:-7]] = converted_parameters[key] * (
                 1 + converted_parameters['redshift'])
 
-    # we do not require the component masses be added if no mass parameters are present
-    converted_parameters = generate_component_masses(converted_parameters, require_add=False)
+    if 'chirp_mass' in converted_parameters.keys():
+        if 'total_mass' in converted_parameters.keys():
+            converted_parameters['symmetric_mass_ratio'] =\
+                chirp_mass_and_total_mass_to_symmetric_mass_ratio(
+                    converted_parameters['chirp_mass'],
+                    converted_parameters['total_mass'])
+        if 'symmetric_mass_ratio' in converted_parameters.keys() and "mass_ratio" not in converted_parameters:
+            converted_parameters['mass_ratio'] =\
+                symmetric_mass_ratio_to_mass_ratio(
+                    converted_parameters['symmetric_mass_ratio'])
+        if 'total_mass' not in converted_parameters.keys():
+            converted_parameters['total_mass'] =\
+                chirp_mass_and_mass_ratio_to_total_mass(
+                    converted_parameters['chirp_mass'],
+                    converted_parameters['mass_ratio'])
+        converted_parameters['mass_1'], converted_parameters['mass_2'] = \
+            total_mass_and_mass_ratio_to_component_masses(
+                converted_parameters['mass_ratio'],
+                converted_parameters['total_mass'])
+    elif 'total_mass' in converted_parameters.keys():
+        if 'symmetric_mass_ratio' in converted_parameters.keys():
+            converted_parameters['mass_ratio'] = \
+                symmetric_mass_ratio_to_mass_ratio(
+                    converted_parameters['symmetric_mass_ratio'])
+        if 'mass_ratio' in converted_parameters.keys():
+            converted_parameters['mass_1'], converted_parameters['mass_2'] =\
+                total_mass_and_mass_ratio_to_component_masses(
+                    converted_parameters['mass_ratio'],
+                    converted_parameters['total_mass'])
+        elif 'mass_1' in converted_parameters.keys():
+            converted_parameters['mass_2'] =\
+                converted_parameters['total_mass'] -\
+                converted_parameters['mass_1']
+        elif 'mass_2' in converted_parameters.keys():
+            converted_parameters['mass_1'] = \
+                converted_parameters['total_mass'] - \
+                converted_parameters['mass_2']
+    elif 'symmetric_mass_ratio' in converted_parameters.keys():
+        converted_parameters['mass_ratio'] =\
+            symmetric_mass_ratio_to_mass_ratio(
+                converted_parameters['symmetric_mass_ratio'])
+        if 'mass_1' in converted_parameters.keys():
+            converted_parameters['mass_2'] =\
+                converted_parameters['mass_1'] *\
+                converted_parameters['mass_ratio']
+        elif 'mass_2' in converted_parameters.keys():
+            converted_parameters['mass_1'] =\
+                converted_parameters['mass_2'] /\
+                converted_parameters['mass_ratio']
+    elif 'mass_ratio' in converted_parameters.keys():
+        if 'mass_1' in converted_parameters.keys():
+            converted_parameters['mass_2'] =\
+                converted_parameters['mass_1'] *\
+                converted_parameters['mass_ratio']
+        if 'mass_2' in converted_parameters.keys():
+            converted_parameters['mass_1'] = \
+                converted_parameters['mass_2'] /\
+                converted_parameters['mass_ratio']
 
     for idx in ['1', '2']:
         key = 'chi_{}'.format(idx)
@@ -868,6 +924,7 @@ def total_mass_and_mass_ratio_to_component_masses(mass_ratio, total_mass):
     return mass_1, mass_2
 
 
+<<<<<<< HEAD
 def chirp_mass_and_mass_ratio_to_component_masses(chirp_mass, mass_ratio):
     """
     Convert total mass and mass ratio of a binary to its component masses.
@@ -893,6 +950,33 @@ def chirp_mass_and_mass_ratio_to_component_masses(chirp_mass, mass_ratio):
             total_mass=total_mass, mass_ratio=mass_ratio)
     )
     return mass_1, mass_2
+=======
+
+
+def dquadmon1_and_dquadmon2_to_dquadmons_and_dquadmona(dQuadMon1, dQuadMon2):
+    """
+    Convert spin-induced quadrupole moment params to their symmetric and anti symmetric combinations.
+
+    Parameters
+    ----------
+    dQuadMon1: float
+        Spin-induced quadrupole parameter of the heavier object
+    dQuadMon2: float
+        Spin-induced quadrupole parameter of the lighter object
+
+    Return
+    ------
+    dQuadMonS: float
+        symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
+    dQuadMonA: float
+        anti-symmetric combination of individual spin-induced quadrupole moment params, dQuadMon1 and dQuadMon2
+    """
+
+    dQuadMonS=1./2.(dQuadMon1+dQuadMon2)
+    dQuadMonA=1./2.(dQuadMon1-dQuadMon2)
+    return dQuadMonS, dQuadMonA
+
+>>>>>>> 7d596701 (rebase conflict)
 
 
 def symmetric_mass_ratio_to_mass_ratio(symmetric_mass_ratio):
@@ -962,7 +1046,6 @@ def chirp_mass_and_primary_mass_to_mass_ratio(chirp_mass, mass_1):
     t1 = np.cbrt(2) * 3 ** (2 / 3)
     t2 = np.cbrt(2 / 3) * a
     return t2 / t0 + t0 / t1
-
 
 def chirp_mass_and_mass_ratio_to_total_mass(chirp_mass, mass_ratio):
     """
@@ -1726,6 +1809,7 @@ def generate_all_bbh_parameters(sample, likelihood=None, priors=None, npool=1):
     return output_sample
 
 
+
 def generate_all_bns_parameters(sample, likelihood=None, priors=None, npool=1):
     """
     From either a single sample or a set of samples fill in all missing
@@ -2071,18 +2155,11 @@ def generate_spin_parameters(sample):
                                 output_sample['mass_ratio']) /\
                                (1 + output_sample['mass_ratio'])
 
-    output_sample['chi_1_in_plane'] = np.sqrt(
-        output_sample['spin_1x'] ** 2 + output_sample['spin_1y'] ** 2
-    )
-    output_sample['chi_2_in_plane'] = np.sqrt(
-        output_sample['spin_2x'] ** 2 + output_sample['spin_2y'] ** 2
-    )
-
     output_sample['chi_p'] = np.maximum(
-        output_sample['chi_1_in_plane'],
+        (output_sample['spin_1x'] ** 2 + output_sample['spin_1y']**2)**0.5,
         (4 * output_sample['mass_ratio'] + 3) /
         (3 * output_sample['mass_ratio'] + 4) * output_sample['mass_ratio'] *
-        output_sample['chi_2_in_plane'])
+        (output_sample['spin_2x'] ** 2 + output_sample['spin_2y']**2)**0.5)
 
     try:
         output_sample['cos_tilt_1'] = np.cos(output_sample['tilt_1'])
@@ -2144,7 +2221,7 @@ def generate_component_spins(sample):
         output_sample['spin_2y'] = 0
         output_sample['spin_2z'] = output_sample['chi_2']
     else:
-        logger.debug("Component spin extraction failed.")
+        logger.warning("Component spin extraction failed.")
 
     return output_sample
 
