@@ -84,6 +84,9 @@ def lal_siqm(
     -------
     dict: A dictionary with the plus and cross polarisation strain modes
     """
+    import lal
+    import lalsimulation
+
     waveform_kwargs = dict(
         waveform_approximant='IMRPhenomPv2', reference_frequency=50.0,
         minimum_frequency=20.0, maximum_frequency=frequency_array[-1],
